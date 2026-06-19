@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: a77580de772b
+Revision ID: 6e352769454d
 Revises: 
-Create Date: 2026-06-20 01:04:31.576980
+Create Date: 2026-06-20 01:33:11.820270
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a77580de772b'
+revision: str = '6e352769454d'
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -28,7 +28,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_clinics'))
     )
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -38,9 +38,9 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('supabase_sub')
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_users')),
+    sa.UniqueConstraint('email', name=op.f('uq_users_email')),
+    sa.UniqueConstraint('supabase_sub', name=op.f('uq_users_supabase_sub'))
     )
     op.create_table('audit_logs',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -51,12 +51,48 @@ def upgrade() -> None:
     sa.Column('entity_id', sa.BigInteger(), nullable=True),
     sa.Column('detail', sa.JSON(), nullable=True),
     sa.Column('at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_audit_logs_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_audit_logs_user_id_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_logs'))
     )
     with op.batch_alter_table('audit_logs', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_audit_logs_clinic_id'), ['clinic_id'], unique=False)
+
+    op.create_table('categories',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('clinic_id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=120), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_categories_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_categories_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_categories_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_categories'))
+    )
+    with op.batch_alter_table('categories', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_categories_clinic_id'), ['clinic_id'], unique=False)
+
+    op.create_table('employees',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('clinic_id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=200), nullable=False),
+    sa.Column('role', sa.String(length=120), nullable=True),
+    sa.Column('salary', sa.BigInteger(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_employees_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_employees_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_employees_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_employees'))
+    )
+    with op.batch_alter_table('employees', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_employees_clinic_id'), ['clinic_id'], unique=False)
 
     op.create_table('memberships',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -68,11 +104,11 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_memberships_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_memberships_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_memberships_updated_by_users')),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_memberships_user_id_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_memberships')),
     sa.UniqueConstraint('clinic_id', 'user_id', name='uq_membership')
     )
     with op.batch_alter_table('memberships', schema=None) as batch_op:
@@ -88,11 +124,11 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_partners_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_partners_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_partners_updated_by_users')),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_partners_user_id_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_partners'))
     )
     with op.batch_alter_table('partners', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_partners_clinic_id'), ['clinic_id'], unique=False)
@@ -108,10 +144,10 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_patients_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_patients_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_patients_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_patients'))
     )
     with op.batch_alter_table('patients', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_patients_clinic_id'), ['clinic_id'], unique=False)
@@ -129,14 +165,32 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['closed_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_periods_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['closed_by'], ['users.id'], name=op.f('fk_periods_closed_by_users')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_periods_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_periods_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_periods'))
     )
     with op.batch_alter_table('periods', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_periods_clinic_id'), ['clinic_id'], unique=False)
+
+    op.create_table('procedures',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('clinic_id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=200), nullable=False),
+    sa.Column('default_price', sa.BigInteger(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_procedures_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_procedures_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_procedures_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_procedures'))
+    )
+    with op.batch_alter_table('procedures', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_procedures_clinic_id'), ['clinic_id'], unique=False)
 
     op.create_table('share_windows',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -147,10 +201,10 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_share_windows_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_share_windows_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_share_windows_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_share_windows'))
     )
     with op.batch_alter_table('share_windows', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_share_windows_clinic_id'), ['clinic_id'], unique=False)
@@ -168,11 +222,11 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['owner_partner_id'], ['partners.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_accounts_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_accounts_created_by_users')),
+    sa.ForeignKeyConstraint(['owner_partner_id'], ['partners.id'], name=op.f('fk_accounts_owner_partner_id_partners')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_accounts_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_accounts'))
     )
     with op.batch_alter_table('accounts', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_accounts_clinic_id'), ['clinic_id'], unique=False)
@@ -182,6 +236,7 @@ def upgrade() -> None:
     sa.Column('clinic_id', sa.Integer(), nullable=False),
     sa.Column('patient_id', sa.Integer(), nullable=False),
     sa.Column('procedure_name', sa.String(length=200), nullable=False),
+    sa.Column('procedure_id', sa.Integer(), nullable=True),
     sa.Column('agreed_price', sa.BigInteger(), nullable=False),
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
@@ -189,11 +244,12 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_cases_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_cases_created_by_users')),
+    sa.ForeignKeyConstraint(['patient_id'], ['patients.id'], name=op.f('fk_cases_patient_id_patients')),
+    sa.ForeignKeyConstraint(['procedure_id'], ['procedures.id'], name=op.f('fk_cases_procedure_id_procedures')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_cases_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_cases'))
     )
     with op.batch_alter_table('cases', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_cases_clinic_id'), ['clinic_id'], unique=False)
@@ -205,9 +261,9 @@ def upgrade() -> None:
     sa.Column('partner_id', sa.Integer(), nullable=False),
     sa.Column('share_num', sa.Integer(), nullable=False),
     sa.Column('share_den', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], ),
-    sa.ForeignKeyConstraint(['share_window_id'], ['share_windows.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], name=op.f('fk_partner_shares_partner_id_partners')),
+    sa.ForeignKeyConstraint(['share_window_id'], ['share_windows.id'], name=op.f('fk_partner_shares_share_window_id_share_windows')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_partner_shares'))
     )
     with op.batch_alter_table('partner_shares', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_partner_shares_share_window_id'), ['share_window_id'], unique=False)
@@ -223,15 +279,37 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['period_id'], ['periods.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_settlement_statements_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_settlement_statements_created_by_users')),
+    sa.ForeignKeyConstraint(['period_id'], ['periods.id'], name=op.f('fk_settlement_statements_period_id_periods')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_settlement_statements_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_settlement_statements'))
     )
     with op.batch_alter_table('settlement_statements', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_settlement_statements_clinic_id'), ['clinic_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_settlement_statements_period_id'), ['period_id'], unique=False)
+
+    op.create_table('case_adjustments',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('clinic_id', sa.Integer(), nullable=False),
+    sa.Column('case_id', sa.Integer(), nullable=False),
+    sa.Column('type', sa.Enum('discount', 'write_off', name='adjustmenttype', native_enum=False), nullable=False),
+    sa.Column('amount', sa.BigInteger(), nullable=False),
+    sa.Column('note', sa.String(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['case_id'], ['cases.id'], name=op.f('fk_case_adjustments_case_id_cases')),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_case_adjustments_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_case_adjustments_created_by_users')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_case_adjustments_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_case_adjustments'))
+    )
+    with op.batch_alter_table('case_adjustments', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_case_adjustments_case_id'), ['case_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_case_adjustments_clinic_id'), ['clinic_id'], unique=False)
 
     op.create_table('money_movements',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -243,6 +321,7 @@ def upgrade() -> None:
     sa.Column('from_account_id', sa.Integer(), nullable=True),
     sa.Column('to_account_id', sa.Integer(), nullable=True),
     sa.Column('case_id', sa.Integer(), nullable=True),
+    sa.Column('category_id', sa.Integer(), nullable=True),
     sa.Column('note', sa.String(), nullable=True),
     sa.Column('settlement_statement_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
@@ -250,15 +329,16 @@ def upgrade() -> None:
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_by', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['case_id'], ['cases.id'], ),
-    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ),
-    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], ),
-    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], ),
-    sa.ForeignKeyConstraint(['settlement_statement_id'], ['settlement_statements.id'], ),
-    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], ),
-    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['case_id'], ['cases.id'], name=op.f('fk_money_movements_case_id_cases')),
+    sa.ForeignKeyConstraint(['category_id'], ['categories.id'], name=op.f('fk_money_movements_category_id_categories')),
+    sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], name=op.f('fk_money_movements_clinic_id_clinics')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], name=op.f('fk_money_movements_created_by_users')),
+    sa.ForeignKeyConstraint(['from_account_id'], ['accounts.id'], name=op.f('fk_money_movements_from_account_id_accounts')),
+    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], name=op.f('fk_money_movements_partner_id_partners')),
+    sa.ForeignKeyConstraint(['settlement_statement_id'], ['settlement_statements.id'], name=op.f('fk_money_movements_settlement_statement_id_settlement_statements')),
+    sa.ForeignKeyConstraint(['to_account_id'], ['accounts.id'], name=op.f('fk_money_movements_to_account_id_accounts')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], name=op.f('fk_money_movements_updated_by_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_money_movements'))
     )
     with op.batch_alter_table('money_movements', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_money_movements_case_id'), ['case_id'], unique=False)
@@ -271,9 +351,9 @@ def upgrade() -> None:
     sa.Column('partner_id', sa.Integer(), nullable=False),
     sa.Column('personal_profit', sa.BigInteger(), nullable=False),
     sa.Column('settlement_balance', sa.BigInteger(), nullable=False),
-    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], ),
-    sa.ForeignKeyConstraint(['statement_id'], ['settlement_statements.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['partner_id'], ['partners.id'], name=op.f('fk_settlement_balances_partner_id_partners')),
+    sa.ForeignKeyConstraint(['statement_id'], ['settlement_statements.id'], name=op.f('fk_settlement_balances_statement_id_settlement_statements')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_settlement_balances'))
     )
     with op.batch_alter_table('settlement_balances', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_settlement_balances_statement_id'), ['statement_id'], unique=False)
@@ -285,11 +365,11 @@ def upgrade() -> None:
     sa.Column('to_partner_id', sa.Integer(), nullable=False),
     sa.Column('amount', sa.BigInteger(), nullable=False),
     sa.Column('paid_movement_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['from_partner_id'], ['partners.id'], ),
-    sa.ForeignKeyConstraint(['paid_movement_id'], ['money_movements.id'], ),
-    sa.ForeignKeyConstraint(['statement_id'], ['settlement_statements.id'], ),
-    sa.ForeignKeyConstraint(['to_partner_id'], ['partners.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['from_partner_id'], ['partners.id'], name=op.f('fk_settlement_obligations_from_partner_id_partners')),
+    sa.ForeignKeyConstraint(['paid_movement_id'], ['money_movements.id'], name=op.f('fk_settlement_obligations_paid_movement_id_money_movements')),
+    sa.ForeignKeyConstraint(['statement_id'], ['settlement_statements.id'], name=op.f('fk_settlement_obligations_statement_id_settlement_statements')),
+    sa.ForeignKeyConstraint(['to_partner_id'], ['partners.id'], name=op.f('fk_settlement_obligations_to_partner_id_partners')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_settlement_obligations'))
     )
     with op.batch_alter_table('settlement_obligations', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_settlement_obligations_statement_id'), ['statement_id'], unique=False)
@@ -313,6 +393,11 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_money_movements_case_id'))
 
     op.drop_table('money_movements')
+    with op.batch_alter_table('case_adjustments', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_case_adjustments_clinic_id'))
+        batch_op.drop_index(batch_op.f('ix_case_adjustments_case_id'))
+
+    op.drop_table('case_adjustments')
     with op.batch_alter_table('settlement_statements', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_settlement_statements_period_id'))
         batch_op.drop_index(batch_op.f('ix_settlement_statements_clinic_id'))
@@ -335,6 +420,10 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_share_windows_clinic_id'))
 
     op.drop_table('share_windows')
+    with op.batch_alter_table('procedures', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_procedures_clinic_id'))
+
+    op.drop_table('procedures')
     with op.batch_alter_table('periods', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_periods_clinic_id'))
 
@@ -351,6 +440,14 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_memberships_clinic_id'))
 
     op.drop_table('memberships')
+    with op.batch_alter_table('employees', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_employees_clinic_id'))
+
+    op.drop_table('employees')
+    with op.batch_alter_table('categories', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_categories_clinic_id'))
+
+    op.drop_table('categories')
     with op.batch_alter_table('audit_logs', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_audit_logs_clinic_id'))
 

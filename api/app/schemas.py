@@ -91,6 +91,7 @@ class PatientDetailOut(BaseModel):
 class CaseCreate(BaseModel):
     patient_id: int
     procedure_name: str
+    procedure_id: int | None = None
     agreed_price: int = Field(ge=0)
 
 
@@ -197,3 +198,241 @@ class DashboardSummary(BaseModel):
     expense: int
     net_profit: int
     account_balances: list[AccountBalanceOut]
+
+
+# --- configuration (Milestone 1) ---------------------------------------------
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class ProcedureCreate(BaseModel):
+    name: str
+    default_price: int = Field(ge=0, default=0)
+
+
+class ProcedureOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    default_price: int
+
+
+class EmployeeCreate(BaseModel):
+    name: str
+    role: str | None = None
+    salary: int = Field(ge=0, default=0)
+
+
+class EmployeeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    role: str | None
+    salary: int
+
+
+class AccountCreate(BaseModel):
+    name: str
+    kind: AccountKind
+    owner_partner_id: int | None = None
+    opening_balance: int = 0
+
+
+class AccountUpdate(BaseModel):
+    name: str | None = None
+    is_active: bool | None = None  # enable/disable (e.g. the joint account, story 14)
+
+
+class AccountFullOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    kind: AccountKind
+    owner_partner_id: int | None
+    opening_balance: int
+    is_active: bool
+
+
+class ShareEntry(BaseModel):
+    partner_id: int
+    share_num: int = Field(gt=0)
+    share_den: int = Field(gt=0)
+
+
+class ShareWindowCreate(BaseModel):
+    effective_from: datetime.date
+    shares: list[ShareEntry] = Field(min_length=1)
+
+
+class ShareWindowOut(BaseModel):
+    id: int
+    effective_from: datetime.date
+    shares: list[ShareEntry]
+
+
+# --- money entry (Milestone 2) -----------------------------------------------
+
+
+class LogExpenseRequest(BaseModel):
+    account_id: int
+    partner_id: int
+    amount: int = Field(gt=0)
+    category_id: int | None = None
+    case_id: int | None = None
+    date: datetime.date | None = None
+    note: str | None = None
+
+
+class TransferRequest(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: int = Field(gt=0)
+    partner_id: int | None = None
+    date: datetime.date | None = None
+    note: str | None = None
+
+
+class CapitalRequest(BaseModel):
+    account_id: int  # destination (money in)
+    partner_id: int
+    amount: int = Field(gt=0)
+    date: datetime.date | None = None
+    note: str | None = None
+
+
+class DrawingRequest(BaseModel):
+    account_id: int  # source (money out)
+    partner_id: int
+    amount: int = Field(gt=0)
+    date: datetime.date | None = None
+    note: str | None = None
+
+
+class RefundRequest(BaseModel):
+    case_id: int
+    account_id: int  # the account the refunded cash leaves
+    partner_id: int
+    amount: int = Field(gt=0)
+    date: datetime.date | None = None
+    note: str | None = None
+
+
+# --- corrections & adjustments (Milestone 6) ---------------------------------
+
+
+class MovementUpdate(BaseModel):
+    amount: int | None = None
+    date: datetime.date | None = None
+    note: str | None = None
+    category_id: int | None = None
+
+
+class AdjustmentRequest(BaseModel):
+    # For a write-off, omit amount to clear the whole current outstanding.
+    amount: int | None = None
+    note: str | None = None
+
+
+class AdjustmentOut(BaseModel):
+    id: int
+    case_id: int
+    type: str
+    amount: int
+    note: str | None
+
+
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int | None
+    action: str
+    entity_type: str
+    entity_id: int | None
+    at: datetime.datetime
+
+
+# --- reports (Milestone 4) ---------------------------------------------------
+
+
+class PnL(BaseModel):
+    start: datetime.date | None
+    end: datetime.date | None
+    income: int
+    expense: int
+    net_profit: int
+
+
+class CategoryTotal(BaseModel):
+    category_id: int | None
+    name: str
+    total: int
+
+
+class ProcedureStat(BaseModel):
+    procedure_name: str
+    count: int
+    revenue: int
+
+
+class CollectorTotal(BaseModel):
+    partner_id: int
+    name: str
+    collected: int
+
+
+class ReceivableRow(BaseModel):
+    patient_id: int
+    name: str
+    outstanding: int
+
+
+class Receivables(BaseModel):
+    total: int
+    rows: list[ReceivableRow]
+
+
+class TrendPoint(BaseModel):
+    month: str
+    income: int
+    expense: int
+    net_profit: int
+
+
+class PartnerContribution(BaseModel):
+    partner_id: int
+    name: str
+    collected: int
+    paid: int
+    entitled: int
+
+
+# --- reminders (Milestone 7) -------------------------------------------------
+
+
+class Reminder(BaseModel):
+    kind: str
+    severity: str
+    message: str
+    entity_type: str | None = None
+    entity_id: int | None = None
+
+
+# --- dev auth (local runnability only) ---------------------------------------
+
+
+class DevLoginRequest(BaseModel):
+    email: str
+    name: str | None = None
+
+
+class DevLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

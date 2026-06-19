@@ -41,6 +41,11 @@ class PeriodStatus(str, Enum):
     CLOSED = "closed"
 
 
+class AdjustmentType(str, Enum):
+    DISCOUNT = "discount"
+    WRITE_OFF = "write_off"
+
+
 def _enum_col(python_enum: type[Enum], **kw):
     """A VARCHAR-backed enum column that stores the member *values* — portable
     across SQLite (tests) and Postgres (prod)."""
@@ -173,6 +178,7 @@ class Case(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), nullable=False, index=True)
     procedure_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    procedure_id: Mapped[int | None] = mapped_column(ForeignKey("procedures.id"), nullable=True)
     agreed_price: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
 
@@ -203,6 +209,7 @@ class MoneyMovement(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
     from_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     to_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     case_id: Mapped[int | None] = mapped_column(ForeignKey("cases.id"), nullable=True, index=True)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     # Set when this Transfer is a settlement payment against a statement (ADR-0003).
     settlement_statement_id: Mapped[int | None] = mapped_column(
@@ -249,6 +256,53 @@ class SettlementObligation(Base):
     paid_movement_id: Mapped[int | None] = mapped_column(
         ForeignKey("money_movements.id"), nullable=True
     )
+
+
+class Category(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
+    """An editable expense category (PRD story 15)."""
+
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+
+
+class Procedure(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
+    """A catalog procedure with an overridable default price (PRD story 16)."""
+
+    __tablename__ = "procedures"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    default_price: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+
+class Employee(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
+    """A light employee entity that salary expenses reference (PRD story 17)."""
+
+    __tablename__ = "employees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    salary: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+
+class CaseAdjustment(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
+    """A discount or write-off against a case (PRD stories 59-60). Reduces what
+    is owed; a write-off is explicitly **not** income."""
+
+    __tablename__ = "case_adjustments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False, index=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id"), nullable=False, index=True)
+    type: Mapped[AdjustmentType] = _enum_col(AdjustmentType, nullable=False)
+    amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuditLog(Base):

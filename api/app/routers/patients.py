@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_session
 from app.deps import CurrentMember, get_current_member
-from app.models import Case, Patient
-from app.services import case_outstanding_value, get_scoped, record_audit
+from app.models import Case, Patient, Procedure
+from app.services import case_outstanding_value, get_scoped, list_alive, record_audit
 
 router = APIRouter(tags=["patients"])
 
@@ -24,6 +24,22 @@ def _case_out(session: Session, clinic_id: int, case: Case) -> schemas.CaseOut:
         status=case.status,
         outstanding=case_outstanding_value(session, clinic_id, case),
     )
+
+
+@router.get("/patients", response_model=list[schemas.PatientOut])
+def list_patients(
+    member: CurrentMember = Depends(get_current_member),
+    session: Session = Depends(get_session),
+):
+    return [schemas.PatientOut.model_validate(p) for p in list_alive(session, Patient, member.clinic_id)]
+
+
+@router.get("/cases", response_model=list[schemas.CaseOut])
+def list_cases(
+    member: CurrentMember = Depends(get_current_member),
+    session: Session = Depends(get_session),
+):
+    return [_case_out(session, member.clinic_id, c) for c in list_alive(session, Case, member.clinic_id)]
 
 
 @router.post("/patients", response_model=schemas.PatientOut, status_code=status.HTTP_201_CREATED)
@@ -91,10 +107,15 @@ def create_case(
     patient = get_scoped(session, Patient, body.patient_id, member.clinic_id)
     if patient is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "patient not found")
+    if body.procedure_id is not None and get_scoped(
+        session, Procedure, body.procedure_id, member.clinic_id
+    ) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "procedure not found")
     case = Case(
         clinic_id=member.clinic_id,
         patient_id=patient.id,
         procedure_name=body.procedure_name,
+        procedure_id=body.procedure_id,
         agreed_price=body.agreed_price,
         created_by=member.user.id,
     )

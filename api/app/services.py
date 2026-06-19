@@ -7,7 +7,7 @@ the crown-jewel settlement logic is provable in isolation (ADR-0001).
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from fractions import Fraction
 
 from sqlalchemy import select
@@ -18,6 +18,7 @@ from app.models import (
     Account,
     AuditLog,
     Case,
+    CaseAdjustment,
     MoneyMovement,
     PartnerShare,
     Period,
@@ -37,6 +38,24 @@ def get_scoped(session: Session, model, entity_id: int, clinic_id: int):
     if obj is None or obj.clinic_id != clinic_id or obj.deleted_at is not None:
         return None
     return obj
+
+
+def list_alive(session: Session, model, clinic_id: int):
+    """All non-deleted rows of ``model`` for the clinic, oldest first."""
+    return list(
+        session.scalars(
+            select(model)
+            .where(model.clinic_id == clinic_id, model.deleted_at.is_(None))
+            .order_by(model.id)
+        )
+    )
+
+
+def soft_delete(obj, user_id: int | None) -> None:
+    """Mark a row deleted without removing it (ADR-0006 — recoverable)."""
+    obj.deleted_at = datetime.now(timezone.utc)
+    if hasattr(obj, "updated_by"):
+        obj.updated_by = user_id
 
 
 def record_audit(
@@ -74,7 +93,11 @@ def _clinic_movements(session: Session, clinic_id: int) -> list[MoneyMovement]:
 
 
 def case_outstanding_value(session: Session, clinic_id: int, case: Case) -> int:
-    """Outstanding = agreed price − payments (negative ⇒ advance/credit)."""
+    """Outstanding = agreed price − payments − adjustments.
+
+    Payments are Income movements (a refund is a negative-amount Income, so it
+    raises the outstanding back). Adjustments are discounts/write-offs, which
+    lower what is owed without being income (PRD stories 59-60)."""
     payments = session.scalars(
         select(MoneyMovement.amount).where(
             MoneyMovement.clinic_id == clinic_id,
@@ -83,8 +106,14 @@ def case_outstanding_value(session: Session, clinic_id: int, case: Case) -> int:
             MoneyMovement.deleted_at.is_(None),
         )
     ).all()
-    # Case-level adjustments (discount/write-off) arrive in Milestone 6.
-    return money_math.case_outstanding(case.agreed_price, payments=payments)
+    adjustments = session.scalars(
+        select(CaseAdjustment.amount).where(
+            CaseAdjustment.clinic_id == clinic_id,
+            CaseAdjustment.case_id == case.id,
+            CaseAdjustment.deleted_at.is_(None),
+        )
+    ).all()
+    return money_math.case_outstanding(case.agreed_price, payments=payments, adjustments=adjustments)
 
 
 def account_balances_for_clinic(session: Session, clinic_id: int) -> dict[int, int]:

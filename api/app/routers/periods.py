@@ -67,6 +67,35 @@ def _statement_out(
     )
 
 
+@router.get("/periods", response_model=list[schemas.PeriodOut])
+def list_periods(
+    member: CurrentMember = Depends(get_current_member),
+    session: Session = Depends(get_session),
+):
+    periods = session.scalars(
+        select(Period)
+        .where(Period.clinic_id == member.clinic_id, Period.deleted_at.is_(None))
+        .order_by(Period.start_date.desc())
+    ).all()
+    return [schemas.PeriodOut.model_validate(p) for p in periods]
+
+
+@router.get("/settlements", response_model=list[schemas.SettlementStatementOut])
+def list_settlements(
+    member: CurrentMember = Depends(get_current_member),
+    session: Session = Depends(get_session),
+):
+    statements = session.scalars(
+        select(SettlementStatement)
+        .where(
+            SettlementStatement.clinic_id == member.clinic_id,
+            SettlementStatement.deleted_at.is_(None),
+        )
+        .order_by(SettlementStatement.id.desc())
+    ).all()
+    return [_statement_out(session, s) for s in statements]
+
+
 @router.post("/periods", response_model=schemas.PeriodOut, status_code=status.HTTP_201_CREATED)
 def create_period(
     body: schemas.PeriodCreate,
@@ -108,7 +137,11 @@ def close_period(
     if period.status is PeriodStatus.CLOSED:
         raise HTTPException(status.HTTP_409_CONFLICT, "period already closed")
 
-    computed = build_settlement(session, member.clinic_id, period)
+    try:
+        computed = build_settlement(session, member.clinic_id, period)
+    except ValueError as exc:
+        # e.g. an entry dated before any share window is effective.
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 
     statement = SettlementStatement(
         clinic_id=member.clinic_id,

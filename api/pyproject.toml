@@ -13,6 +13,7 @@ dependencies = [
     "alembic>=1.13",
     "pyjwt>=2.8",
     "psycopg[binary]>=3.2",
+    "reportlab>=4.1",
 ]
 
 [dependency-groups]

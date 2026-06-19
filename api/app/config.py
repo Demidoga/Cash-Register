@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     clinic_name: str = "My Clinic"
     clinic_currency: str = "PKR"
 
+    # Local-only convenience: issue a signed JWT for an email without Supabase,
+    # so the app runs end-to-end in dev. MUST be False in production.
+    dev_login_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:
