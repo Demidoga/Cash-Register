@@ -4,6 +4,53 @@ A running record of the design conversation behind this project, so any future s
 
 ---
 
+## Language (glossary)
+
+The canonical, opinionated vocabulary. Definitions only — no implementation. (This section is the project glossary; the rest of this file is the design log.)
+
+**Settlement**:
+The month-end (or on-demand) calculation of who pays whom so each partner ends up holding their share of the period's **profit**. It rebalances **profit only**.
+_Avoid_: "split", "payout".
+
+**Profit** (period):
+Total `Income` − total `Expense` for the period. Only `Income` and `Expense` movements affect it; `Capital`, `Drawing`, `Transfer` never do.
+_Avoid_: "earnings", "net".
+
+**Attributed personal profit** (partner i, written `personal_i`):
+The profit that flowed through partner i's **personal** accounts = (income i collected into personal accounts) − (expenses i paid from personal accounts). This is a *profit figure*, **not** the cash balance of those accounts.
+_Avoid_: "personal holding", "personal balance" — those sound like account cash and are the source of the build trap (see ADR-0002).
+
+**Settlement balance** (partner i):
+`personal_i − s_i × Σ_j personal_j`. Positive ⇒ holds more profit than their share ⇒ pays in; negative ⇒ is owed.
+
+**Joint pool**:
+Profit that flowed through shared (joint) accounts. It **stays standing** at settlement (not distributed); implicitly owned by partners in their share proportions.
+
+**Money movement**:
+The single concept for every cash event, carrying a `type` (`Income · Expense · Transfer · Capital · Drawing`), an amount (integer rupees), a date, an attributed partner, an optional note, and its account **legs** — a destination (`to`), a source (`from`), or both (Transfer). Only `Income`/`Expense` affect profit. Not full double-entry (see ADR-0007).
+_Avoid_: "transaction", "journal row" (overloaded).
+
+**Non-profit movements**:
+`Capital` (a partner puts their own outside money in), `Drawing` (a partner takes money out for personal use), `Transfer` (cash moved account→account). They change account cash but are **invisible to settlement** and to profit.
+
+**Period**:
+A span of clinic activity (monthly by default, on-demand allowed) that is **closed** and **settled** as a unit.
+
+**Close** (a period):
+The action that snapshots the period, computes its **settlement statement**, and **locks** the period's entries from edits.
+
+**Settlement statement**:
+The locked artifact a close produces — the obligations for that period ("Saad owes Hassan 5,000"). It is a *statement*, not a movement; closing it does **not** move any cash.
+
+**Settlement payment**:
+The real `Transfer` movement recorded when a partner actually pays what a settlement statement says they owe. Dated when the cash moves, linked back to the statement.
+
+**Clinic**:
+The single business whose money the app tracks. In V1 there is exactly one, seeded at setup. Carried as `clinic_id` on top-level tables purely to keep multi-clinic *possible* later without a schema rewrite (see ADR-0005) — it is **not** a SaaS tenant in V1.
+_Avoid_: "tenant", "organization", "workspace" (they imply the multi-tenant SaaS we deferred).
+
+---
+
 ## What this project is
 
 A **cash-management web app for a small dental clinic** run by two doctors (Saad & Hassan), replacing their shared Excel sheet (`Clinic_Cash_Register.xlsx`). The Excel is a **case study only** — the product is architected as a **general, multi-tenant SaaS** any small partnership business could use, but **run privately for now** (just the two doctors; no billing, no public signup).
@@ -70,7 +117,7 @@ Things the data quietly revealed:
 
 ### Infrastructure / architecture
 
-- **Multi-tenant SaaS, architected general / run private.** Top-level **Clinic** tenant; strict isolation. No billing, no public signup now; private rollout (owner creates clinic, invites partner).
+- **Multi-tenant SaaS, architected general / run private.** Top-level **Clinic** tenant; strict isolation. No billing, no public signup now; private rollout (owner creates clinic, invites partner). **[AMENDED in V1 planning — see ADR-0005:** built as a **single-clinic** app; we keep only `clinic_id` on top-level tables as a cheap hook, and defer RLS, the isolation test suite, public signup, and per-clinic invitations until the app is actually sold to other clinics.**]**
 - **Platform:** responsive web app / **PWA** now; **native mobile app planned later** → **API-first backend** so the future app reuses the same API.
 - **Internet:** clinic connection is **solid** → build "assume online" + quick-add **holds entry locally and retries** so a payment is never lost mid-save.
 - **Auth:** **Google sign-in + email/password** (user correctly pushed for Google as convenient + offloads credential security; we kept email/password too since a general audience can't be assumed to have Gmail). Per-clinic **invite/allowlist** gates access (auth = identity, allowlist = authorization).

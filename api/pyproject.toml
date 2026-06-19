@@ -1,0 +1,40 @@
+[project]
+name = "clinic-cash-register-api"
+version = "0.1.0"
+description = "Clinic Cash Register — FastAPI backend (V1 Milestone 0 walking skeleton)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "pyjwt>=2.8",
+    "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "httpx>=0.27",
+    "mypy>=1.11",
+]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+exclude = ["app/migrations/"]
+# Pragmatic for a young codebase: catch real type errors, not every nitpick.
+check_untyped_defs = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
