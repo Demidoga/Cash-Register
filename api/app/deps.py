@@ -63,16 +63,50 @@ def get_current_member(
     )
     if user is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "not on the clinic allowlist")
-    membership = session.scalar(
+    memberships = session.scalars(
         select(Membership).where(
             Membership.user_id == user.id, Membership.deleted_at.is_(None)
         )
-    )
-    if membership is None:
+    ).all()
+    if not memberships:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "not on the clinic allowlist")
+    if len(memberships) > 1:
+        # Single-clinic invariant (ADR-0005): a user has at most one membership.
+        # If that ever breaks we must not silently pick one — fail loudly here so
+        # whoever adds multi-clinic support resolves the intended clinic explicitly
+        # (ADR-0008 consequences).
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "user belongs to multiple clinics; clinic resolution is not implemented",
+        )
+    membership = memberships[0]
+    _backfill_stub_identity(session, user, identity)
     return CurrentMember(
         user=user,
         membership=membership,
         clinic_id=membership.clinic_id,
         role=membership.role,
     )
+
+
+def _backfill_stub_identity(session: Session, user: User, identity: Identity) -> None:
+    """First sign-in of an invited stub: an invite creates a ``User`` with email
+    only (ADR-0008), so the verified JWT is where we first learn that person's
+    Supabase ``sub`` and display name. Idempotent — only fills blanks."""
+    changed = False
+    if identity.sub and user.supabase_sub is None:
+        user.supabase_sub = identity.sub
+        changed = True
+    if identity.full_name and user.full_name is None:
+        user.full_name = identity.full_name
+        changed = True
+    if changed:
+        session.commit()
+
+
+def require_owner(member: CurrentMember = Depends(get_current_member)) -> CurrentMember:
+    """The app's first real role gate: only an ``owner`` may invite, list, or
+    revoke members (ADR-0008). Every other endpoint settles for any Membership."""
+    if member.role is not Role.OWNER:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "owner access required")
+    return member

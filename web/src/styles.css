@@ -99,6 +99,8 @@ tr:last-child td { border-bottom: none; }
 .banner { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
 .banner.warn { border-color: var(--amber); }
 .inline { display: flex; gap: 8px; align-items: center; }
+.divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.8rem; margin: 16px 0; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; }

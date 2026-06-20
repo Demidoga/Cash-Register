@@ -6,7 +6,7 @@ import { Spinner, ToastHost } from "./ui";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
-import TakePayment from "./pages/TakePayment";
+import LogIncome from "./pages/LogIncome";
 import LogExpense from "./pages/LogExpense";
 import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
@@ -18,7 +18,7 @@ import Audit from "./pages/Audit";
 
 const NAV = [
   ["/", "Dashboard", "▦"],
-  ["/pay", "Take payment", "＋"],
+  ["/income", "Log income", "＋"],
   ["/expense", "Log expense", "−"],
   ["/patients", "Patients", "☺"],
   ["/journal", "Journal", "≣"],
@@ -70,7 +70,7 @@ function Shell() {
         </div>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/pay" element={<TakePayment />} />
+          <Route path="/income" element={<LogIncome />} />
           <Route path="/expense" element={<LogExpense />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientDetail />} />

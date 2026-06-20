@@ -49,6 +49,18 @@ The real `Transfer` movement recorded when a partner actually pays what a settle
 The single business whose money the app tracks. In V1 there is exactly one, seeded at setup. Carried as `clinic_id` on top-level tables purely to keep multi-clinic *possible* later without a schema rewrite (see ADR-0005) — it is **not** a SaaS tenant in V1.
 _Avoid_: "tenant", "organization", "workspace" (they imply the multi-tenant SaaS we deferred).
 
+**Member (Membership)**:
+A `User` who has been granted access to the clinic — the **allowlist**. A valid login alone is not access; authorization *is* the Membership (see ADR-0005, ADR-0008). Distinct from **Partner**: a Member can use the app without being a financial Partner.
+_Avoid_: "collaborator", "contributor", "seat" (use "Member").
+
+**Access tier** (`Membership.role`):
+The label `owner | partner | staff` on a Membership. It names an intended *permission level* — **independent of the `Partner` financial entity**. An invited Member holds the `partner` tier (full co-equal access) without being a `Partner`. As of V1 the tiers are **not enforced** in code: every Member can do everything except that only `owner` may invite/revoke (ADR-0008).
+_Avoid_: conflating the `partner` *tier* with a `Partner` *entity* — they are unrelated.
+
+**Invite**:
+The owner-only act of adding an email to the allowlist. Mechanically it creates a `User` stub (email only) + a Membership; **no email is sent and no token is issued** (ADR-0008). The invitee gains access by signing in to Supabase with that email. A stub with no `supabase_sub` yet is shown as **pending**.
+_Avoid_: "invitation link", "invite token" (there is none in V1).
+
 ---
 
 ## What this project is

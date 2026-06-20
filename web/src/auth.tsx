@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { ApiError, api, getToken, setToken } from "./api";
+import { supabase, supabaseEnabled } from "./supabase";
 import type { Me } from "./types";
 
 interface AuthValue {
@@ -7,7 +8,13 @@ interface AuthValue {
   loading: boolean;
   error: ApiError | null;
   hasToken: boolean;
-  login: (email: string, name?: string) => Promise<void>;
+  supabaseEnabled: boolean;
+  // Supabase-backed sign-in (production).
+  signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string, name?: string) => Promise<void>;
+  // Dev fallback when Supabase is not configured.
+  devLogin: (email: string, name?: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -38,7 +45,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(
+  // --- Supabase session → API token sync ------------------------------------
+  // The API client (api.ts) reads the bearer token from localStorage. Mirror
+  // the Supabase access token there on every auth-state change (initial load,
+  // sign-in, and silent token refresh) so requests, the offline queue, and
+  // downloads all keep working without touching api.ts.
+  useEffect(() => {
+    if (!supabase) return;
+    const apply = (token: string | null) => {
+      setToken(token);
+      setHasToken(!!token);
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      apply(data.session?.access_token ?? null);
+      void refresh();
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      apply(session?.access_token ?? null);
+      void refresh();
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [refresh]);
+
+  // --- Dev fallback path (no Supabase configured) ---------------------------
+  useEffect(() => {
+    if (supabaseEnabled) return;
+    void refresh();
+    const onUnauthorized = () => {
+      setHasToken(false);
+      setMe(null);
+    };
+    window.addEventListener("ccr:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("ccr:unauthorized", onUnauthorized);
+  }, [refresh]);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) throw new Error("Supabase is not configured");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      // Come back to where we started after Google confirms the user.
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw new Error(error.message);
+    // Browser redirects to Google here; the rest happens on return via
+    // onAuthStateChange.
+  }, []);
+
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    if (!supabase) throw new Error("Supabase is not configured");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const signUpWithPassword = useCallback(
+    async (email: string, password: string, name?: string) => {
+      if (!supabase) throw new Error("Supabase is not configured");
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: name ? { data: { full_name: name } } : undefined,
+      });
+      if (error) throw new Error(error.message);
+    },
+    [],
+  );
+
+  const devLogin = useCallback(
     async (email: string, name?: string) => {
       const { access_token } = await api.devLogin(email, name);
       setToken(access_token);
@@ -49,24 +123,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    if (supabase) void supabase.auth.signOut();
     setToken(null);
     setHasToken(false);
     setMe(null);
     setError(null);
   }, []);
 
-  useEffect(() => {
-    void refresh();
-    const onUnauthorized = () => {
-      setHasToken(false);
-      setMe(null);
-    };
-    window.addEventListener("ccr:unauthorized", onUnauthorized);
-    return () => window.removeEventListener("ccr:unauthorized", onUnauthorized);
-  }, [refresh]);
-
   return (
-    <AuthContext.Provider value={{ me, loading, error, hasToken, login, logout, refresh }}>
+    <AuthContext.Provider
+      value={{
+        me,
+        loading,
+        error,
+        hasToken,
+        supabaseEnabled,
+        signInWithGoogle,
+        signInWithPassword,
+        signUpWithPassword,
+        devLogin,
+        logout,
+        refresh,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

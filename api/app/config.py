@@ -14,10 +14,13 @@ class Settings(BaseSettings):
     # e.g. "postgresql+psycopg://user:pass@host:5432/db".
     database_url: str = "sqlite+pysqlite:///./clinic.db"
 
-    # Supabase issues the JWT; FastAPI verifies it (ADR-0001). Legacy-style HS256
-    # shared secret. JWKS/RS256 is a production-hardening follow-up.
+    # Supabase issues the JWT; FastAPI verifies it (ADR-0001). HS256 uses the
+    # shared secret below; newer Supabase projects sign with asymmetric keys
+    # (ES256/RS256) verified against the project's JWKS — set ``supabase_url`` and
+    # security.py fetches the keys from {supabase_url}/auth/v1/.well-known/jwks.json.
     jwt_secret: str = "dev-insecure-secret-change-me"
     jwt_audience: str = "authenticated"
+    supabase_url: str = ""
 
     # The single clinic this deployment serves (ADR-0005). Seeded at setup.
     clinic_name: str = "My Clinic"

@@ -25,9 +25,38 @@ npm run preview
 
 ## Auth
 
-Dev uses the backend `/dev/login` endpoint (email → signed JWT) so the whole app
-runs locally without Supabase. In production, swap the login screen for Supabase
-Google / email auth and disable `DEV_LOGIN_ENABLED` on the API.
+The login screen has two modes, chosen automatically:
+
+- **Supabase (real Google + email/password)** — active when `VITE_SUPABASE_URL`
+  and `VITE_SUPABASE_ANON_KEY` are set. Supabase runs the Google OAuth flow and
+  email/password auth, issues a JWT, and FastAPI verifies it. The app never sees
+  a password.
+- **Dev login** — the fallback when those vars are absent. Calls the backend
+  `/dev/login` endpoint (email → signed JWT) so the whole app runs locally
+  without a Supabase project.
+
+### Enabling real Google sign-in
+
+1. **Create a Supabase project** (free tier is fine). From **Project Settings →
+   API** copy the **Project URL** and **anon/publishable key** into
+   `web/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). See
+   `.env.example`.
+2. **Backend secret.** From the same page copy the **JWT Secret** (the legacy
+   HS256 secret) and set it as `JWT_SECRET` on the API. This is what lets
+   FastAPI verify Supabase's tokens. Also set `DEV_LOGIN_ENABLED=false` in
+   production so `/dev/login` returns 404.
+3. **Google credential.** In Google Cloud Console create an **OAuth 2.0 Client
+   ID** (Web application). Add Supabase's callback —
+   `https://<your-project-ref>.supabase.co/auth/v1/callback` — as an authorized
+   redirect URI. Copy the client ID + secret into Supabase under
+   **Authentication → Providers → Google**, and enable the provider.
+4. **Redirect URLs.** In Supabase **Authentication → URL Configuration** add
+   your app origins (e.g. `http://localhost:5173` and your production URL) to the
+   redirect allow-list — the app sends users back to `window.location.origin`.
+5. **Allowlist the user.** A valid Google login is not enough on its own: the
+   email must also have a Membership row in this app (PRD story 7), otherwise the
+   API returns 403 "not on the clinic allowlist". Seed the first owner via the
+   setup flow / a Membership row.
 
 ## Offline resilience (PRD 68-69)
 
