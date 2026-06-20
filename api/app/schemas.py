@@ -62,6 +62,32 @@ class MeResponse(BaseModel):
     role: Role
 
 
+# --- members / allowlist (invite by email, ADR-0008) -------------------------
+
+
+class InviteRequest(BaseModel):
+    # Plain str (not EmailStr) to avoid the email-validator dependency; the
+    # router lowercases and does a minimal shape check (matches get_identity).
+    email: str
+
+
+class MemberOut(BaseModel):
+    id: int  # the Membership id (the thing you revoke), not the user id
+    user_id: int
+    email: str
+    full_name: str | None
+    role: Role
+    # "pending" until the invitee first signs in and the stub is backfilled.
+    status: str
+
+
+class InviteResponse(BaseModel):
+    member: MemberOut
+    # "invited" (new), "reactivated" (revoked email re-invited), or
+    # "already_member" (idempotent no-op).
+    status: str
+
+
 # --- patients / cases --------------------------------------------------------
 
 

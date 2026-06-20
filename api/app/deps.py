@@ -49,7 +49,9 @@ def get_identity(claims: dict = Depends(get_claims)) -> Identity:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token has no email claim")
     meta = claims.get("user_metadata")
     full_name = meta.get("full_name") if isinstance(meta, dict) else claims.get("name")
-    return Identity(email=email.lower(), sub=claims.get("sub"), full_name=full_name)
+    # Strip + lowercase so this matches the allowlist email exactly — invite
+    # normalizes the same way (_normalize_email in routers/members.py).
+    return Identity(email=email.strip().lower(), sub=claims.get("sub"), full_name=full_name)
 
 
 def get_current_member(

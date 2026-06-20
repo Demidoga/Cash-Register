@@ -42,11 +42,12 @@ The whole design exists to make money-correctness provable. Hold this in mind wh
 `api/app/services.py` is the **bridge**: it loads SQLAlchemy rows, maps them to the pure money-math value types, calls the pure functions, and persists results. It also holds the shared `get_scoped` / `list_alive` / `soft_delete` / `record_audit` helpers.
 
 ### Request flow & layering
-`routers/*.py` (one per domain area: setup, movements, patients, corrections, periods, reports, reminders, dashboard, exports, config, devauth) → `services.py` → `money_math/` (pure) and `models.py` (persistence). Pydantic `schemas.py` defines request/response models; the OpenAPI spec they generate is the **only** contract between backend and frontend — there is no shared code package across the Python/TS boundary.
+`routers/*.py` (one per domain area: setup, members, movements, patients, corrections, periods, reports, reminders, dashboard, exports, config, devauth) → `services.py` → `money_math/` (pure) and `models.py` (persistence). Pydantic `schemas.py` defines request/response models; the OpenAPI spec they generate is the **only** contract between backend and frontend — there is no shared code package across the Python/TS boundary.
 
 ### Auth, allowlist, tenant scoping (deps.py, security.py)
 - **Authentication** = a verified JWT. Supabase issues it; FastAPI verifies it in `security.py`, picking HS256 (shared `jwt_secret`) vs ES256/RS256 (JWKS fetched from `{supabase_url}/auth/v1/.well-known/jwks.json`) from the token's own `alg` header. `verify_jwt` only proves identity.
-- **Authorization** = the allowlist: a valid login is not enough; the email must have a `Membership` row (`get_current_member` in `deps.py`).
+- **Authorization** = the allowlist: a valid login is not enough; the email must have a `Membership` row (`get_current_member` in `deps.py`). On an invited member's first sign-in, `get_current_member` backfills the stub `User`'s `supabase_sub`/`full_name` from the JWT (ADR-0008).
+- **Role gate**: tiers (`owner | partner | staff`) are otherwise unenforced in V1; the one exception is `require_owner` (`deps.py`), which gates the invite/list/revoke endpoints in `routers/members.py` (ADR-0008). Invite = add an email to the allowlist (a `User` stub + `Membership`); no email is sent, no token issued.
 - **Tenant scoping**: every entity carries `clinic_id`; every read goes through `get_scoped`/`list_alive` filtered by the member's clinic (ADR-0005 — single clinic in practice, multi-clinic-ready in schema, so going multi-clinic is a migration not a rewrite).
 - **Dev login** (`devauth.py`, `/dev/login`): when `DEV_LOGIN_ENABLED=true`, the API mints a signed JWT for any email so the app runs end-to-end without Supabase. **Must be `false` in production.** The first user to run `/setup` becomes the owner.
 

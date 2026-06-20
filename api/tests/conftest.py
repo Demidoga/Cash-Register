@@ -25,17 +25,23 @@ from app.main import app
 
 
 @pytest.fixture
-def client():
+def _session_factory():
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,  # one shared connection -> in-memory DB persists
     )
     Base.metadata.create_all(engine)
-    TestingSessionLocal = sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
+    try:
+        yield sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
+    finally:
+        engine.dispose()
 
+
+@pytest.fixture
+def client(_session_factory):
     def _override_get_session():
-        session = TestingSessionLocal()
+        session = _session_factory()
         try:
             yield session
         finally:
@@ -45,4 +51,14 @@ def client():
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-    engine.dispose()
+
+
+@pytest.fixture
+def db(_session_factory):
+    """A session on the *same* in-memory DB the ``client`` talks to — for the
+    rare test that must seed a state no endpoint can create (e.g. a 2nd owner)."""
+    session = _session_factory()
+    try:
+        yield session
+    finally:
+        session.close()

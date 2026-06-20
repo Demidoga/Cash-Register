@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { api } from "../api";
+import { useAuth } from "../auth";
 import { useLoad } from "../hooks";
 import { rupees, today } from "../format";
+import type { Member } from "../types";
 import { Badge, Card, Field, Spinner, useToast } from "../ui";
 
 export default function Config() {
   const toast = useToast();
+  const { me } = useAuth();
   const partners = useLoad(() => api.partners());
   const accounts = useLoad(() => api.accounts());
   const categories = useLoad(() => api.categories());
@@ -55,6 +58,8 @@ export default function Config() {
   return (
     <>
       <h1>Configure</h1>
+
+      {me?.role === "owner" && <MembersCard />}
 
       <Card style={{ marginBottom: 16 }}>
         <h2>Accounts</h2>
@@ -146,6 +151,66 @@ export default function Config() {
         </Card>
       </div>
     </>
+  );
+}
+
+// Owner-only allowlist management (ADR-0008). Add someone by email; they sign
+// in to Supabase with that email to get access — no email is sent, no token.
+function MembersCard() {
+  const toast = useToast();
+  const members = useLoad(() => api.members());
+  const [email, setEmail] = useState("");
+  const fail = (e: any) => toast.show(e?.message ?? "Failed", "error");
+
+  async function invite(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await api.inviteMember(email.trim());
+      setEmail("");
+      members.reload();
+      const msg =
+        res.status === "already_member" ? `${res.member.email} is already a member`
+        : res.status === "reactivated" ? `Access restored for ${res.member.email}`
+        : `Invited ${res.member.email}`;
+      toast.show(msg, "ok");
+    } catch (e2) { fail(e2); }
+  }
+
+  async function revoke(m: Member) {
+    if (!window.confirm(`Revoke access for ${m.full_name ?? m.email}?`)) return;
+    try {
+      await api.revokeMember(m.id);
+      members.reload();
+      toast.show("Access revoked", "ok");
+    } catch (e) { fail(e); }
+  }
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <h2>Members</h2>
+      <p className="muted" style={{ marginTop: -4 }}>
+        Grant access by email. The person signs in with that email — no invite email is sent.
+      </p>
+      {members.loading ? <Spinner /> : (
+        <table>
+          <thead><tr><th>Member</th><th>Tier</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {members.data?.map((m) => (
+              <tr key={m.id}>
+                <td>{m.full_name ?? m.email}{m.full_name && <div className="muted">{m.email}</div>}</td>
+                <td><Badge tone="gray">{m.role}</Badge></td>
+                <td>{m.status === "pending" ? <Badge tone="amber">pending</Badge> : <Badge tone="green">active</Badge>}</td>
+                <td className="num"><button className="danger sm" onClick={() => revoke(m)}>Revoke</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <form onSubmit={invite} className="inline" style={{ marginTop: 12 }}>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" required />
+        <button style={{ flex: "0 0 auto" }}>Invite</button>
+      </form>
+    </Card>
   );
 }
 

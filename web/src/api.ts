@@ -4,8 +4,9 @@
 
 import type {
   Account, AuditLog, Case, Category, CategoryTotal, CollectorTotal, DashboardSummary,
-  Employee, Me, Movement, MovementType, PartnerContribution, Partner, Patient, PatientDetail,
-  Period, Procedure, ProcedureStat, Receivables, Reminder, SettlementStatement, TrendPoint,
+  Employee, InviteResult, Me, Member, Movement, MovementType, PartnerContribution, Partner,
+  Patient, PatientDetail, Period, Procedure, ProcedureStat, Receivables, Reminder,
+  SettlementStatement, TrendPoint,
 } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string) || "/api";
@@ -145,6 +146,11 @@ export const api = {
   deleteEmployee: (id: number) => request<void>("DELETE", `/employees/${id}`),
   shareWindows: () => request<any[]>("GET", "/share-windows"),
   createShareWindow: (body: unknown) => request<any>("POST", "/share-windows", body),
+
+  // members / allowlist (owner-only)
+  members: () => request<Member[]>("GET", "/members"),
+  inviteMember: (email: string) => request<InviteResult>("POST", "/members", { email }),
+  revokeMember: (id: number) => request<void>("DELETE", `/members/${id}`),
 
   // patients & cases
   patients: () => request<Patient[]>("GET", "/patients"),

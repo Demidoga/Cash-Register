@@ -7,6 +7,18 @@ export type PeriodStatus = "open" | "closed";
 
 export interface Me { user_id: number; email: string; clinic_id: number; role: Role; }
 export interface Partner { id: number; name: string; }
+
+// A member of the clinic's allowlist (ADR-0008). "pending" until the invitee
+// first signs in; `id` is the Membership id (the thing you revoke).
+export type MemberStatus = "active" | "pending";
+export interface Member {
+  id: number; user_id: number; email: string;
+  full_name: string | null; role: Role; status: MemberStatus;
+}
+export interface InviteResult {
+  member: Member;
+  status: "invited" | "reactivated" | "already_member";
+}
 export interface Account {
   id: number; name: string; kind: AccountKind;
   owner_partner_id: number | null; opening_balance: number; is_active: boolean;
