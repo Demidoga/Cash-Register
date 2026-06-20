@@ -12,6 +12,9 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
+      // Don't let the SPA navigation fallback swallow API calls when the API is
+      // served under /api on the same origin in production.
+      workbox: { navigateFallbackDenylist: [/^\/api/] },
       manifest: {
         name: "Clinic Cash Register",
         short_name: "Cash Register",
