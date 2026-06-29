@@ -29,9 +29,42 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+def normalize_url(url: str) -> str:
+    """Force the installed psycopg (v3) driver for bare Postgres URLs.
+
+    Supabase (and Heroku-style providers) hand out ``postgresql://...`` or
+    ``postgres://...``. SQLAlchemy maps those to psycopg2, which is **not**
+    installed — only psycopg (v3) is — so connecting would raise ModuleNotFound.
+    Also used by Alembic's env.py so migrations accept the same bare URL.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 def make_engine(url: str) -> Engine:
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    return create_engine(url, connect_args=connect_args, future=True)
+    url = normalize_url(url)
+    if url.startswith("sqlite"):
+        return create_engine(
+            url, connect_args={"check_same_thread": False}, future=True
+        )
+    # Postgres / Supabase. pool_pre_ping recycles connections the Supavisor
+    # pooler or idle timeouts have dropped, instead of erroring mid-request.
+    settings = get_settings()
+    connect_args: dict[str, object] = {}
+    if settings.db_disable_prepared_statements:
+        # Required for Supabase's transaction-mode pooler (port 6543), which
+        # rejects server-side prepared statements.
+        connect_args["prepare_threshold"] = None
+    return create_engine(
+        url,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        future=True,
+    )
 
 
 # Module-level engine/session factory, (re)bindable via configure().

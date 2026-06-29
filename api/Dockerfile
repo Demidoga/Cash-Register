@@ -12,6 +12,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-install-project
 
+# Project metadata must be in the image for the project install below (the first
+# sync only bind-mounts it for that step).
+COPY pyproject.toml uv.lock ./
 COPY app/ ./app/
 COPY alembic.ini ./
 

@@ -1,0 +1,4 @@
+# Local environment / secrets (compose loads this automatically)
+.env
+.env.local
+.env.*.local

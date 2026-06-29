@@ -24,7 +24,11 @@ uv run uvicorn app.main:app --reload
 Configuration is via environment variables (see `app/config.py`):
 
 - `DATABASE_URL` — SQLAlchemy URL. Defaults to a local SQLite file. Production
-  targets Postgres (e.g. Supabase): `postgresql+psycopg://...`.
+  targets Supabase Postgres: paste Supabase's **session-mode pooler** string
+  (Project Settings → Database → Connection pooling). A bare `postgresql://`
+  URL is auto-normalized to the `psycopg` driver, so the copy-pasted string works
+  as-is. (Use the transaction-mode pooler on port 6543 only with
+  `DB_DISABLE_PREPARED_STATEMENTS=true`.)
 - `JWT_SECRET` — HS256 secret used to verify the Supabase JWT.
 - `JWT_AUDIENCE` — expected audience claim (default `authenticated`).
 

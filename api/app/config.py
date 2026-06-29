@@ -11,8 +11,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # SQLAlchemy URL. Tests use SQLite; production targets Postgres / Supabase,
-    # e.g. "postgresql+psycopg://user:pass@host:5432/db".
+    # e.g. "postgresql+psycopg://user:pass@host:5432/db". A bare "postgresql://"
+    # (as Supabase hands out) is normalized to the psycopg driver in db.py.
     database_url: str = "sqlite+pysqlite:///./clinic.db"
+
+    # Postgres/Supabase connection pool. Conservative defaults so a single
+    # container stays well under Supabase's connection limits (ignored on SQLite).
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    # Set true ONLY when database_url points at Supabase's transaction-mode pooler
+    # (port 6543), which rejects server-side prepared statements.
+    db_disable_prepared_statements: bool = False
 
     # Supabase issues the JWT; FastAPI verifies it (ADR-0001). HS256 uses the
     # shared secret below; newer Supabase projects sign with asymmetric keys
@@ -22,9 +31,10 @@ class Settings(BaseSettings):
     jwt_audience: str = "authenticated"
     supabase_url: str = ""
 
-    # The single clinic this deployment serves (ADR-0005). Seeded at setup.
+    # The single clinic this deployment serves (ADR-0005). Seeded at setup — this
+    # is only the fallback name if /setup is called without one (the setup wizard
+    # always sends a name, and currency, in the request body).
     clinic_name: str = "My Clinic"
-    clinic_currency: str = "PKR"
 
     # Local-only convenience: issue a signed JWT for an email without Supabase,
     # so the app runs end-to-end in dev. MUST be False in production.

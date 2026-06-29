@@ -19,7 +19,27 @@
       "Bash(sqlite3 /home/asad/repos/CashRegister/api/clinic.db \"SELECT u.email FROM users u JOIN memberships m ON u.id = m.user_id LIMIT 5;\")",
       "Bash(sqlite3 /home/asad/repos/CashRegister/api/clinic.db \"SELECT id, type, amount, date FROM money_movements WHERE deleted_at IS NULL LIMIT 5;\")",
       "Bash(VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npm run dev -- --port 5174)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)",
+      "Bash(git checkout *)",
+      "Bash(docker version *)",
+      "Bash(JWT_SECRET=x docker compose config --quiet)",
+      "Bash(JWT_SECRET=x docker compose build)",
+      "Bash(break)",
+      "Bash(JWT_SECRET=testsecret DEV_LOGIN_ENABLED=true docker compose up -d)",
+      "Bash(docker compose *)",
+      "Bash(JWT_SECRET=testsecret DEV_LOGIN_ENABLED=true docker compose -f docker-compose.yml -f /tmp/claude-1000/-home-asad-repos-CashRegister/f9c62293-2cb8-4077-8047-8d06a660caed/scratchpad/dc.override.yml up -d)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  body: \" http://localhost:18000/health)",
+      "Bash(curl -s http://localhost:18000/health)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}  body: \" http://localhost:8080/api/health)",
+      "Bash(curl -s http://localhost:8080/api/health)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8080/api/me)",
+      "Bash(export JWT_SECRET=testsecret)",
+      "Bash(JWT_SECRET=testsecret docker compose -f docker-compose.yml -f /tmp/claude-1000/-home-asad-repos-CashRegister/f9c62293-2cb8-4077-8047-8d06a660caed/scratchpad/dc.override.yml down -v)",
+      "Bash(git check-ignore *)",
+      "Bash(export DATABASE_URL='postgresql://test:test@localhost:55432/test')",
+      "Bash(docker exec *)",
+      "Bash(JWT_SECRET=x DATABASE_URL=postgresql://u:p@h:5432/d docker compose config --quiet)",
+      "Bash(export DATABASE_URL='postgresql://postgres.cblkjkdicfnvwigfxlkx:%2Fr8rxe%242S_b_w2%40@aws-1-ap-south-1.pooler.supabase.com:5432/postgres')"
     ]
   }
 }

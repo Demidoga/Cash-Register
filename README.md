@@ -26,9 +26,9 @@ uv run alembic upgrade head          # creates the schema (SQLite by default)
 uv run uvicorn app.main:app --reload # http://localhost:8000  (OpenAPI at /docs)
 ```
 
-By default the API uses a local SQLite file and a dev sign-in. For production set
-`DATABASE_URL` to Postgres/Supabase, set a strong `JWT_SECRET`, and set
-`DEV_LOGIN_ENABLED=false`.
+By default the API uses a local SQLite file and a dev sign-in — no Postgres
+needed for local development. Production data lives in **Supabase Postgres**; see
+"Deploy" below.
 
 **2. Web** (Node):
 
@@ -47,6 +47,28 @@ setup), and you're live.
 cd api && uv run pytest && uv run mypy app      # money-math + HTTP API seams
 cd web && npm run build                          # type-checks the frontend
 ```
+
+## Deploy (Docker + Supabase Postgres)
+
+The deployed app is two containers (`api` + `web`); data lives in **Supabase
+Postgres** (Supabase also handles auth). There is no database container — the
+backend connects to Supabase over `DATABASE_URL`.
+
+```bash
+cp .env.example .env        # then fill it in:
+#  DATABASE_URL  = Supabase → Project Settings → Database → Connection pooling
+#                  (session mode, port 5432). NOT the direct connection.
+#  JWT_SECRET    = openssl rand -hex 32   (or your Supabase JWT secret)
+#  DEV_LOGIN_ENABLED=false
+#  VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY = your Supabase project keys
+
+docker compose up -d --build
+```
+
+On first boot the API runs `alembic upgrade head`, creating the schema in
+Supabase. The app is then at `http://localhost` (API proxied under `/api`). A bare
+`postgresql://` connection string works as-is — it's normalized to the `psycopg`
+driver automatically.
 
 ## What's inside (by milestone)
 
