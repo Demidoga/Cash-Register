@@ -13,8 +13,10 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       CLINIC_NAME: ${CLINIC_NAME:-My Clinic}
       DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-false}
-    ports:
-      - "8000:8000"
+    # No host port: the API is reached only by the web container over the
+    # internal compose network. Uncomment to reach it directly while debugging.
+    # ports:
+    #   - "127.0.0.1:8000:8000"
 
   web:
     build:
@@ -26,5 +28,27 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    # Publish nginx on the host loopback so Tailscale (running on the host) can
+    # Funnel it over HTTPS — this is the default, free path. Bound to 127.0.0.1
+    # so it is NOT exposed on the LAN; Tailscale is the only way in.
+    #   • want plain-HTTP access from other LAN machines too? use "80:80"
+    #   • using the Cloudflare tunnel instead? you can drop this block entirely
+    #     (cloudflared reaches "web" over the internal network as web:80)
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
+
+  # Cloudflare Tunnel — an ALTERNATIVE front door, only if you want a custom
+  # domain instead of the free *.ts.net address (see docs/deploy-home-server.md).
+  # It sits behind a compose profile, so the default `docker compose up` does NOT
+  # start it. To use it: put CLOUDFLARE_TUNNEL_TOKEN in .env, point the tunnel's
+  # public hostname at http://web:80 in the Cloudflare dashboard, then run:
+  #   docker compose --profile tunnel up -d --build
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web

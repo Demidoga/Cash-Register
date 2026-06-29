@@ -48,7 +48,11 @@
       "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost/api/health)",
       "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}  %{content_type}\\\\n\" http://localhost/)",
       "Bash(rm -f __TRACKED_VAR__/atest.db)",
-      "Bash(DATABASE_URL=sqlite+pysqlite:///__TRACKED_VAR__/atest.db uv run alembic upgrade head)"
+      "Bash(DATABASE_URL=sqlite+pysqlite:///__TRACKED_VAR__/atest.db uv run alembic upgrade head)",
+      "Bash(DATABASE_URL=x JWT_SECRET=x CLOUDFLARE_TUNNEL_TOKEN=x docker compose config --quiet)",
+      "Bash(DATABASE_URL=x JWT_SECRET=x docker compose config --services)",
+      "Bash(DATABASE_URL=x JWT_SECRET=x docker compose --profile tunnel config --services)",
+      "Bash(DATABASE_URL=x JWT_SECRET=x docker compose config)"
     ]
   }
 }
