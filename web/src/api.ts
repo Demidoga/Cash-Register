@@ -3,10 +3,10 @@
 // mid-save (PRD story 68), so a payment is never lost.
 
 import type {
-  Account, AuditLog, Case, Category, CategoryTotal, CollectorTotal, DashboardSummary,
-  Employee, InviteResult, Me, Member, Movement, MovementType, PartnerContribution, Partner,
-  Patient, PatientDetail, Period, Procedure, ProcedureStat, Receivables, Reminder,
-  SettlementStatement, TrendPoint,
+  Account, AccountActivity, AuditLog, Case, Category, CategoryTotal, CollectorTotal,
+  DashboardSummary, Employee, InviteResult, Me, Member, Movement, MovementType,
+  PartnerContribution, Partner, Patient, PatientDetail, Period, Procedure, ProcedureStat,
+  Receivables, Reminder, SettlementStatement, TrendPoint,
 } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string) || "/api";
@@ -42,7 +42,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 401) {
     setToken(null);
     window.dispatchEvent(new CustomEvent("ccr:unauthorized"));
-    throw new ApiError(401, "Session expired — please sign in again.");
+    throw new ApiError(401, "Session expired. Please sign in again.");
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -103,7 +103,7 @@ export async function flushQueue(): Promise<number> {
       flushed++;
     } catch (err) {
       if (err instanceof ApiError) {
-        // A held entry the server rejects can never succeed — drop it.
+        // A held entry the server rejects can never succeed, so drop it.
         items = items.filter((i) => i.id !== item.id);
         writeQueue(items);
       } else {
@@ -156,9 +156,12 @@ export const api = {
   patients: () => request<Patient[]>("GET", "/patients"),
   patient: (id: number) => request<PatientDetail>("GET", `/patients/${id}`),
   createPatient: (body: unknown) => request<Patient>("POST", "/patients", body),
+  deletePatient: (id: number) => request<void>("DELETE", `/patients/${id}`),
+  restorePatient: (id: number) => request<Patient>("POST", `/patients/${id}/restore`),
   cases: () => request<Case[]>("GET", "/cases"),
   caseById: (id: number) => request<Case>("GET", `/cases/${id}`),
   createCase: (body: unknown) => request<Case>("POST", "/cases", body),
+  editCase: (id: number, body: unknown) => request<Case>("PATCH", `/cases/${id}`, body),
   discount: (id: number, body: unknown) => request<Case>("POST", `/cases/${id}/discount`, body),
   writeOff: (id: number, body: unknown) => request<Case>("POST", `/cases/${id}/write-off`, body),
 
@@ -192,6 +195,7 @@ export const api = {
   receivables: () => request<Receivables>("GET", "/reports/receivables"),
   trends: () => request<TrendPoint[]>("GET", "/reports/trends"),
   perPartner: () => request<PartnerContribution[]>("GET", "/reports/per-partner"),
+  accountActivity: (q = "") => request<AccountActivity[]>("GET", `/reports/account-activity${q}`),
   reminders: () => request<Reminder[]>("GET", "/reminders"),
   auditLogs: () => request<AuditLog[]>("GET", "/audit-logs"),
 };

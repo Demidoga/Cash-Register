@@ -17,10 +17,24 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_session
 from app.deps import CurrentMember, get_current_member
-from app.models import Account, Case, Category, MoneyMovement, Partner
+from app.models import (
+    Account,
+    AdjustmentType,
+    Case,
+    CaseAdjustment,
+    Category,
+    MoneyMovement,
+    Partner,
+)
 from app.money_math.types import MovementType
 from app.routers.patients import _case_out
-from app.services import closed_period_covering, get_scoped, record_audit
+from app.services import (
+    closed_period_covering,
+    discount_for_movement,
+    discounts_for_movements,
+    get_scoped,
+    record_audit,
+)
 
 router = APIRouter(tags=["movements"])
 
@@ -79,9 +93,48 @@ def take_payment(
         note=body.note,
         created_by=member.user.id,
     )
-    _persist(session, member, movement, "take_payment")
+    session.add(movement)
+    session.flush()
+    record_audit(
+        session,
+        clinic_id=member.clinic_id,
+        user_id=member.user.id,
+        action="take_payment",
+        entity_type="money_movement",
+        entity_id=movement.id,
+        detail={"type": movement.type.value, "amount": movement.amount},
+    )
+
+    # An optional discount rides along with the payment: a CaseAdjustment that
+    # lowers what is owed (not income, ADR-0007). Booked in the same commit so a
+    # payment+discount is atomic and never half-applied (also true offline).
+    if body.discount is not None:
+        adjustment = CaseAdjustment(
+            clinic_id=member.clinic_id,
+            case_id=body.case_id,
+            type=AdjustmentType.DISCOUNT,
+            amount=body.discount,
+            note=body.note,
+            movement_id=movement.id,  # link it so editing the payment can rewrite it
+            created_by=member.user.id,
+        )
+        session.add(adjustment)
+        session.flush()
+        record_audit(
+            session,
+            clinic_id=member.clinic_id,
+            user_id=member.user.id,
+            action=AdjustmentType.DISCOUNT.value,
+            entity_type="case_adjustment",
+            entity_id=adjustment.id,
+            detail={"case_id": body.case_id, "amount": body.discount},
+        )
+
+    session.commit()
+    movement_out = schemas.MovementOut.model_validate(movement)
+    movement_out.discount = body.discount or 0
     return schemas.TakePaymentResponse(
-        movement=schemas.MovementOut.model_validate(movement),
+        movement=movement_out,
         case=_case_out(session, member.clinic_id, case),
     )
 
@@ -242,4 +295,11 @@ def list_movements(
     if end is not None:
         stmt = stmt.where(MoneyMovement.date <= end)
     stmt = stmt.order_by(MoneyMovement.date.desc(), MoneyMovement.id.desc()).limit(limit)
-    return [schemas.MovementOut.model_validate(m) for m in session.scalars(stmt)]
+    movements = list(session.scalars(stmt))
+    discounts = discounts_for_movements(session, [m.id for m in movements])
+    out: list[schemas.MovementOut] = []
+    for m in movements:
+        mo = schemas.MovementOut.model_validate(m)
+        mo.discount = discounts.get(m.id, 0)
+        out.append(mo)
+    return out

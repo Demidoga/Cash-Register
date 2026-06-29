@@ -37,7 +37,12 @@ export interface PatientDetail extends Patient { total_outstanding: number; case
 export interface Movement {
   id: number; type: MovementType; amount: number; date: string;
   partner_id: number | null; from_account_id: number | null; to_account_id: number | null;
-  case_id: number | null; note: string | null;
+  case_id: number | null; category_id: number | null; note: string | null;
+  // Discount linked to this payment (0 when none) — lets the income editor pre-fill it.
+  discount: number;
+  // Correction trail: `edited` flips true once an entry is changed after it was
+  // first recorded (ADR-0006), so the journal can flag it apart from fresh rows.
+  created_at: string; updated_at: string; updated_by: number | null; edited: boolean;
 }
 
 export interface Period {
@@ -67,6 +72,14 @@ export interface TrendPoint { month: string; income: number; expense: number; ne
 export interface PartnerContribution {
   partner_id: number; name: string; collected: number; paid: number; entitled: number;
 }
+export interface AccountActivityRow {
+  movement_id: number; date: string; type: MovementType;
+  amount: number; note: string | null; case_id: number | null;
+}
+export interface AccountActivity {
+  account_id: number; name: string; kind: AccountKind;
+  income: number; expense: number; rows: AccountActivityRow[];
+}
 export interface Reminder {
   kind: string; severity: string; message: string;
   entity_type: string | null; entity_id: number | null;
@@ -74,4 +87,7 @@ export interface Reminder {
 export interface AuditLog {
   id: number; user_id: number | null; action: string;
   entity_type: string; entity_id: number | null; at: string;
+  // Free-form context for the write. For an edit it's a per-field diff
+  // ({ field: { from, to } }); for other actions, action-specific keys.
+  detail: Record<string, unknown> | null;
 }

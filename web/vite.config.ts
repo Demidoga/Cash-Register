@@ -19,8 +19,8 @@ export default defineConfig({
         name: "Clinic Cash Register",
         short_name: "Cash Register",
         description: "Partnership cash-management for a small clinic",
-        theme_color: "#0f766e",
-        background_color: "#0b1120",
+        theme_color: "#ffffff",
+        background_color: "#f5f5f7",
         display: "standalone",
         start_url: "/",
         icons: [

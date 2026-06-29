@@ -40,7 +40,7 @@ export default function Patients() {
                 {patients.data.map((p) => (
                   <tr key={p.id}>
                     <td><Link to={`/patients/${p.id}`}>{p.name}</Link></td>
-                    <td className="muted">{p.phone ?? "—"}</td>
+                    <td className="muted">{p.phone ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>

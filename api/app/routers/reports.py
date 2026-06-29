@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_session
 from app.deps import CurrentMember, get_current_member
-from app.models import Case, Category, MoneyMovement, PartnerShare, Patient, ShareWindow
+from app.models import Account, Case, Category, MoneyMovement, PartnerShare, Patient, ShareWindow
 from app.money_math.types import MovementType
 from app.services import case_outstanding_value, list_alive
 
@@ -152,6 +152,57 @@ def trends(
             net_profit=income.get(k, 0) - expense.get(k, 0),
         )
         for k in keys
+    ]
+
+
+@router.get("/account-activity", response_model=list[schemas.AccountActivity])
+def account_activity(
+    start: date | None = None,
+    end: date | None = None,
+    limit: int = 8,
+    member: CurrentMember = Depends(get_current_member),
+    session: Session = Depends(get_session),
+):
+    """Per-account income/expense history — what came in and what went out of
+    each cash container. Income lands in `to_account`; expense leaves
+    `from_account` (ADR-0007). Transfers/capital/drawings are out of scope here;
+    the Journal shows the full ledger. Totals span the range; `rows` are capped
+    at `limit` most-recent entries per account for the dashboard preview."""
+    accounts = list_alive(session, Account, member.clinic_id)
+    income: dict[int, int] = defaultdict(int)
+    expense: dict[int, int] = defaultdict(int)
+    rows: dict[int, list[schemas.AccountActivityRow]] = defaultdict(list)
+
+    # Most-recent first so per-account `rows` previews show the latest activity.
+    movements = sorted(
+        _movements(session, member.clinic_id, start, end),
+        key=lambda m: (m.date, m.id),
+        reverse=True,
+    )
+    for m in movements:
+        if m.type is MovementType.INCOME and m.to_account_id is not None:
+            account_id = m.to_account_id
+            income[account_id] += m.amount
+        elif m.type is MovementType.EXPENSE and m.from_account_id is not None:
+            account_id = m.from_account_id
+            expense[account_id] += m.amount
+        else:
+            continue
+        if len(rows[account_id]) < limit:
+            rows[account_id].append(
+                schemas.AccountActivityRow(
+                    movement_id=m.id, date=m.date, type=m.type,
+                    amount=m.amount, note=m.note, case_id=m.case_id,
+                )
+            )
+
+    return [
+        schemas.AccountActivity(
+            account_id=a.id, name=a.name, kind=a.kind,
+            income=income.get(a.id, 0), expense=expense.get(a.id, 0),
+            rows=rows.get(a.id, []),
+        )
+        for a in accounts
     ]
 
 

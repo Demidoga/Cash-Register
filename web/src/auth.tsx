@@ -66,7 +66,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       apply(session?.access_token ?? null);
       void refresh();
     });
-    return () => sub.subscription.unsubscribe();
+
+    // api.ts drops the mirrored bearer on any 401 (it fires ccr:unauthorized).
+    // The Supabase session is usually still valid or refreshable, so recover the
+    // token rather than stranding the user on a dead page (which previously fell
+    // through to the Setup screen): force one refresh and re-mirror, signing out
+    // only if that genuinely fails. The 5s gate prevents a tight loop if the
+    // backend rejects every token.
+    let lastRecover = 0;
+    const onUnauthorized = async () => {
+      const now = Date.now();
+      if (now - lastRecover < 5000) {
+        apply(null);
+        setMe(null);
+        return;
+      }
+      lastRecover = now;
+      const { data, error: refreshError } = await supabase!.auth.refreshSession();
+      if (refreshError || !data.session) {
+        apply(null);
+        setMe(null);
+      } else {
+        apply(data.session.access_token);
+        void refresh();
+      }
+    };
+    window.addEventListener("ccr:unauthorized", onUnauthorized);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener("ccr:unauthorized", onUnauthorized);
+    };
   }, [refresh]);
 
   // --- Dev fallback path (no Supabase configured) ---------------------------

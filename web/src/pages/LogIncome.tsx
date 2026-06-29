@@ -1,20 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useLoad } from "../hooks";
 import { rupees, today } from "../format";
-import { Card, Field, Spinner, useToast } from "../ui";
+import { Card, Field, MovementHistory, Spinner, useToast } from "../ui";
+import type { Movement } from "../types";
 
 const NEW = "new"; // sentinel for the "+ add new" option in the patient/case selects
 
 export default function LogIncome() {
   const toast = useToast();
+  const location = useLocation();
+
   const partners = useLoad(() => api.partners());
   const accounts = useLoad(() => api.accounts());
   const patients = useLoad(() => api.patients());
   const cases = useLoad(() => api.cases());
   const procedures = useLoad(() => api.procedures());
+  const history = useLoad(() => api.movements("?type=income"));
 
-  // who/which case the income is for — either an existing id, the NEW sentinel, or "" (unset)
+  const accName = (id: number | null) => (id ? accounts.data?.find((a) => a.id === id)?.name ?? "" : "");
+  const parName = (id: number | null) => (id ? partners.data?.find((p) => p.id === id)?.name ?? "" : "");
+  const caseName = (id: number | null) => (id ? cases.data?.find((c) => c.id === id)?.procedure_name ?? "" : "");
+
+  // The movement being edited (null = recording a fresh entry). When set, the
+  // form below doubles as the editor: every field is pre-filled and Save issues
+  // a PATCH that overwrites the original instead of creating a new entry.
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // who/which case the income is for: either an existing id, the NEW sentinel, or "" (unset)
   const [patientSel, setPatientSel] = useState("");
   const [caseSel, setCaseSel] = useState("");
   // inline "new patient" fields
@@ -28,6 +42,7 @@ export default function LogIncome() {
   const [accountId, setAccountId] = useState("");
   const [partnerId, setPartnerId] = useState("");
   const [amount, setAmount] = useState("");
+  const [discount, setDiscount] = useState("");
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,15 +60,58 @@ export default function LogIncome() {
 
   const activeAccounts = (accounts.data ?? []).filter((a) => a.is_active);
 
-  if (partners.loading || accounts.loading || cases.loading || patients.loading || procedures.loading)
-    return <Spinner />;
+  // Pull an existing income entry into the form for editing. Derives the patient
+  // from the entry's case so the patient → case cascade lands on the right rows.
+  function loadForEdit(m: Movement) {
+    setEditingId(m.id);
+    const c = (cases.data ?? []).find((x) => x.id === m.case_id);
+    setPatientSel(c ? String(c.patient_id) : "");
+    setCaseSel(m.case_id ? String(m.case_id) : "");
+    setNewName(""); setNewPhone("");
+    setProcId(""); setProcName(""); setPrice("");
+    setAccountId(m.to_account_id ? String(m.to_account_id) : "");
+    setPartnerId(m.partner_id ? String(m.partner_id) : "");
+    setAmount(String(m.amount));
+    setDiscount(m.discount ? String(m.discount) : ""); // the discount linked to this payment
+    setDate(m.date);
+    setNote(m.note ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   function reset() {
+    setEditingId(null);
     setPatientSel(""); setCaseSel("");
     setNewName(""); setNewPhone("");
     setProcId(""); setProcName(""); setPrice("");
-    setAmount(""); setNote("");
+    setAmount(""); setDiscount(""); setNote("");
+    setDate(today());
   }
+
+  // When navigated here from the Journal's edit button, load that entry once the
+  // reference data it needs (cases/patients) has arrived.
+  const editLoadedRef = useRef(false);
+  useEffect(() => {
+    const incoming = (location.state as { editMovement?: Movement } | null)?.editMovement;
+    if (incoming && !editLoadedRef.current && cases.data && patients.data && accounts.data && partners.data) {
+      editLoadedRef.current = true;
+      loadForEdit(incoming);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, cases.data, patients.data, accounts.data, partners.data]);
+
+  // Auto-fill the receiving account from the selected "Collected by" partner when
+  // that partner has a linked personal account (set in Configure → Accounts →
+  // Owner). It's only a smart default for new entries — never override the
+  // account stored on the entry we're editing.
+  useEffect(() => {
+    if (editingId !== null) return;
+    const pid = Number(partnerId || partners.data?.[0]?.id);
+    const owned = (accounts.data ?? []).find((a) => a.is_active && a.owner_partner_id === pid);
+    if (owned) setAccountId(String(owned.id));
+  }, [partnerId, partners.data, accounts.data, editingId]);
+
+  if (partners.loading || accounts.loading || cases.loading || patients.loading || procedures.loading)
+    return <Spinner />;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,7 +143,31 @@ export default function LogIncome() {
       } else {
         caseId = Number(caseSel);
       }
-      // 3. Record the income against that case.
+
+      const disc = Number(discount) > 0 ? Number(discount) : null;
+
+      // 3a. Editing: overwrite the original entry in place (PATCH). The discount
+      //     is sent as an absolute amount, so the backend rewrites the discount
+      //     linked to this payment (0 clears it) rather than stacking a new one.
+      if (editingId !== null) {
+        await api.editMovement(editingId, {
+          case_id: caseId,
+          to_account_id: Number(accountId || activeAccounts[0]?.id),
+          partner_id: Number(partnerId || partners.data?.[0]?.id),
+          amount: Number(amount),
+          date,
+          note: note || null,
+          discount: disc ?? 0,
+        });
+        toast.show("Income updated", "ok");
+        reset();
+        patients.reload();
+        cases.reload();
+        history.reload();
+        return;
+      }
+
+      // 3b. Recording fresh: take the payment (held offline if needed).
       const res = await api.takePayment({
         case_id: caseId,
         account_id: Number(accountId || activeAccounts[0]?.id),
@@ -93,15 +175,18 @@ export default function LogIncome() {
         amount: Number(amount),
         date,
         note: note || null,
+        // Optional: discount the case alongside the payment (omit when blank/0).
+        discount: disc,
       });
       if ("queued" in res) {
-        toast.show("Offline — income held and will sync automatically", "ok");
+        toast.show("Offline. Income held and will sync automatically", "ok");
       } else {
         toast.show(`Income recorded · case now ${rupees(res.case.outstanding)} outstanding`, "ok");
       }
       reset();
       patients.reload();
       cases.reload();
+      if (!("queued" in res)) history.reload();
     } catch (e2: any) {
       toast.show(e2?.message ?? "Failed", "error");
     } finally {
@@ -111,8 +196,15 @@ export default function LogIncome() {
 
   return (
     <>
-      <h1>Log income</h1>
-      <Card style={{ maxWidth: 560 }}>
+      <h1>{editingId !== null ? "Edit income" : "Log income"}</h1>
+      <div className="split">
+      <Card>
+        {editingId !== null && (
+          <div className="edit-banner">
+            Editing an existing entry — saving overwrites it.
+            <button type="button" className="ghost sm" onClick={reset}>Cancel</button>
+          </div>
+        )}
         <form onSubmit={submit}>
           <Field label="Patient">
             <select
@@ -168,7 +260,7 @@ export default function LogIncome() {
                     if (proc) { setProcName(proc.name); setPrice(String(proc.default_price)); }
                   }}
                 >
-                  <option value="">— type a name below —</option>
+                  <option value="">Type a name below</option>
                   {procedures.data?.map((x) => (
                     <option key={x.id} value={x.id}>{x.name} ({rupees(x.default_price)})</option>
                   ))}
@@ -189,6 +281,9 @@ export default function LogIncome() {
             <Field label="Amount (Rs)">
               <input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} required />
             </Field>
+            <Field label="Discount (Rs, optional)">
+              <input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+            </Field>
             <Field label="Date">
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </Field>
@@ -208,9 +303,35 @@ export default function LogIncome() {
           <Field label="Note (optional)">
             <input value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
-          <button disabled={busy}>{busy ? "Saving…" : "Record income"}</button>
+          <div className="row" style={{ gap: 8 }}>
+            <button disabled={busy}>
+              {busy ? "Saving…" : editingId !== null ? "Save changes" : "Record income"}
+            </button>
+            {editingId !== null && (
+              <button type="button" className="ghost" onClick={reset}>Cancel</button>
+            )}
+          </div>
         </form>
       </Card>
+      <MovementHistory
+        title="Recent income"
+        loading={history.loading}
+        movements={history.data}
+        empty="No income recorded yet."
+        onEdit={loadForEdit}
+        detail={(m) => [caseName(m.case_id), parName(m.partner_id), m.note].filter(Boolean).join(" · ") || "—"}
+        fullDetail={(m) => {
+          const rows: [string, string][] = [];
+          const who = parName(m.partner_id); if (who) rows.push(["Collected by", who]);
+          const to = accName(m.to_account_id); if (to) rows.push(["Into", to]);
+          const c = caseName(m.case_id); if (c) rows.push(["Case", c]);
+          if (m.note) rows.push(["Note", m.note]);
+          rows.push(["Logged", new Date(m.created_at).toLocaleString()]);
+          if (m.edited) rows.push(["Edited", new Date(m.updated_at).toLocaleString()]);
+          return rows;
+        }}
+      />
+      </div>
     </>
   );
 }

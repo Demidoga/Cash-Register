@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clinic
+      POSTGRES_USER: clinic
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinic"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://clinic:${POSTGRES_PASSWORD:-changeme}@db:5432/clinic
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-authenticated}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      CLINIC_NAME: ${CLINIC_NAME:-My Clinic}
+      CLINIC_CURRENCY: ${CLINIC_CURRENCY:-PKR}
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-false}
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE: /api
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  db_data:

@@ -10,12 +10,13 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from fractions import Fraction
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import money_math
 from app.models import (
     Account,
+    AdjustmentType,
     AuditLog,
     Case,
     CaseAdjustment,
@@ -49,6 +50,28 @@ def list_alive(session: Session, model, clinic_id: int):
             .order_by(model.id)
         )
     )
+
+
+def discounts_for_movements(session: Session, movement_ids: list[int]) -> dict[int, int]:
+    """Total live discount linked to each payment (movement) — for pre-filling the
+    income editor. Batched to avoid an N+1 over the movements list."""
+    if not movement_ids:
+        return {}
+    rows = session.execute(
+        select(CaseAdjustment.movement_id, func.sum(CaseAdjustment.amount))
+        .where(
+            CaseAdjustment.movement_id.in_(movement_ids),
+            CaseAdjustment.type == AdjustmentType.DISCOUNT,
+            CaseAdjustment.deleted_at.is_(None),
+        )
+        .group_by(CaseAdjustment.movement_id)
+    ).all()
+    return {mid: int(total) for mid, total in rows if mid is not None}
+
+
+def discount_for_movement(session: Session, movement_id: int) -> int:
+    """The live discount linked to one payment (0 when none)."""
+    return discounts_for_movements(session, [movement_id]).get(movement_id, 0)
 
 
 def soft_delete(obj, user_id: int | None) -> None:

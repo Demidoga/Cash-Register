@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(echo \"frontend PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(chromium-cli screenshot *)",
+      "Bash(dpkg -l)",
+      "Bash(awk '{print $2}')",
+      "Bash(apt-get install *)",
+      "Bash(sudo apt-get install -y xvfb)",
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('playwright'\\)\")",
+      "Bash(npx --yes playwright --version)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=/home/asad/.cache/ms-playwright npx playwright install chromium)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=/home/asad/.cache/ms-playwright node test-delete.mjs)",
+      "Bash(sqlite3 /home/asad/repos/CashRegister/api/clinic.db \"SELECT u.email FROM users u JOIN memberships m ON u.id = m.user_id LIMIT 5;\")",
+      "Bash(sqlite3 /home/asad/repos/CashRegister/api/clinic.db \"SELECT id, type, amount, date FROM money_movements WHERE deleted_at IS NULL LIMIT 5;\")",
+      "Bash(VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npm run dev -- --port 5174)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)"
+    ]
+  }
+}

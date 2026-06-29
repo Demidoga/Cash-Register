@@ -303,6 +303,12 @@ class CaseAdjustment(Base, TimestampMixin, SoftDeleteMixin, AuditMixin):
     type: Mapped[AdjustmentType] = _enum_col(AdjustmentType, nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Set when this discount rode along with a payment (take_payment), so editing
+    # that payment can rewrite *its* discount instead of stacking a new one. Null
+    # for a discount/write-off applied directly to a case.
+    movement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("money_movements.id"), nullable=True, index=True
+    )
 
 
 class AuditLog(Base):

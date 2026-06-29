@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { TrendUp, TrendDown, Scales } from "@phosphor-icons/react";
 import { api } from "../api";
 import { useLoad } from "../hooks";
 import { rupees } from "../format";
@@ -8,28 +9,32 @@ export default function Dashboard() {
   const dash = useLoad(() => api.dashboard());
   const reminders = useLoad(() => api.reminders());
   const receivables = useLoad(() => api.receivables());
+  const activity = useLoad(() => api.accountActivity());
 
   return (
     <>
       <h1>Dashboard</h1>
-      <p className="muted" style={{ marginTop: -4 }}>
-        Where money comes from and where it goes — this period.
-      </p>
+      <p className="page-intro">Where money comes from and where it goes, this period.</p>
 
       {dash.loading || !dash.data ? (
-        <Spinner />
+        <Card style={{ marginBottom: 16 }}><Spinner /></Card>
       ) : (
         <div className="grid cols-3" style={{ marginBottom: 16 }}>
-          <Stat label="Income" value={dash.data.income} tone="pos" />
-          <Stat label="Expenses" value={dash.data.expense} tone="neg" />
-          <Stat label="Net profit" value={dash.data.net_profit} tone={dash.data.net_profit >= 0 ? "pos" : "neg"} />
+          <Stat label="Income" value={dash.data.income} tone="pos" icon={<TrendUp size={20} />} />
+          <Stat label="Expenses" value={dash.data.expense} tone="neg" icon={<TrendDown size={20} />} />
+          <Stat
+            label="Net profit"
+            value={dash.data.net_profit}
+            tone={dash.data.net_profit >= 0 ? "pos" : "neg"}
+            icon={<Scales size={20} />}
+          />
         </div>
       )}
 
       <div className="grid cols-2">
         <Card>
           <div className="section-head"><h2>Account balances</h2><Link to="/journal">Journal →</Link></div>
-          {dash.data?.account_balances.length ? (
+          {dash.loading ? <Spinner /> : dash.data?.account_balances.length ? (
             <table>
               <tbody>
                 {dash.data.account_balances.map((a) => (
@@ -46,7 +51,7 @@ export default function Dashboard() {
         <Card>
           <div className="section-head"><h2>Needs attention</h2><Badge tone="amber">{reminders.data?.length ?? 0}</Badge></div>
           {reminders.loading ? <Spinner /> : reminders.data?.length ? (
-            <div className="grid" style={{ gap: 8 }}>
+            <div className="grid" style={{ gap: 10 }}>
               {reminders.data.map((r, i) => (
                 <div key={i} className="inline" style={{ justifyContent: "space-between" }}>
                   <span>{r.message}</span>
@@ -54,7 +59,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : <div className="list-empty">All caught up ✓</div>}
+          ) : <div className="list-empty">All caught up.</div>}
         </Card>
       </div>
 
@@ -63,7 +68,7 @@ export default function Dashboard() {
           <h2>Patients to chase</h2>
           <span className="muted">Total outstanding: {rupees(receivables.data?.total ?? 0)}</span>
         </div>
-        {receivables.data?.rows.length ? (
+        {receivables.loading ? <Spinner /> : receivables.data?.rows.length ? (
           <table>
             <thead><tr><th>Patient</th><th className="num">Outstanding</th></tr></thead>
             <tbody>
@@ -75,8 +80,49 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
-        ) : <div className="list-empty">Nothing outstanding ✓</div>}
+        ) : <div className="list-empty">Nothing outstanding.</div>}
       </Card>
+
+      <div className="section-head" style={{ marginTop: 24 }}>
+        <h2>Account activity</h2>
+        <Link to="/journal">Full journal →</Link>
+      </div>
+      <p className="page-intro">Money in and out of each account — income received and expenses paid.</p>
+      {activity.loading ? (
+        <Card><Spinner /></Card>
+      ) : activity.data?.length ? (
+        <div className="grid cols-2">
+          {activity.data.map((acc) => (
+            <Card key={acc.account_id}>
+              <div className="section-head">
+                <h2>{acc.name}</h2>
+                <Badge tone={acc.kind === "joint" ? "green" : "gray"}>{acc.kind}</Badge>
+              </div>
+              <div className="inline" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+                <span className="muted">In <Money n={acc.income} /></span>
+                <span className="muted">Out <Money n={-acc.expense} /></span>
+              </div>
+              {acc.rows.length ? (
+                <table className="history-table">
+                  <thead><tr><th>Date</th><th>Detail</th><th className="num">Amount</th></tr></thead>
+                  <tbody>
+                    {acc.rows.map((r) => (
+                      <tr key={r.movement_id}>
+                        <td className="muted">{r.date}</td>
+                        <td className="muted">
+                          {r.type === "income" ? "Income" : "Expense"}
+                          {r.note ? ` · ${r.note}` : ""}
+                        </td>
+                        <td className="num"><Money n={r.type === "income" ? r.amount : -r.amount} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <div className="list-empty">No income or expenses yet.</div>}
+            </Card>
+          ))}
+        </div>
+      ) : <div className="list-empty">No accounts yet.</div>}
     </>
   );
 }

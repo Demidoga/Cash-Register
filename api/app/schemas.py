@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models import PeriodStatus, Role
 from app.money_math.types import AccountKind, MovementType
@@ -121,6 +121,15 @@ class CaseCreate(BaseModel):
     agreed_price: int = Field(ge=0)
 
 
+class CaseUpdate(BaseModel):
+    # All optional — a PATCH carries only what changed. `procedure_id` sent as an
+    # explicit null unlinks the case from the catalog (tracked via model_fields_set).
+    procedure_name: str | None = None
+    procedure_id: int | None = None
+    agreed_price: int | None = Field(default=None, ge=0)
+    status: str | None = None
+
+
 class CaseOut(BaseModel):
     id: int
     patient_id: int
@@ -143,7 +152,23 @@ class MovementOut(BaseModel):
     from_account_id: int | None
     to_account_id: int | None
     case_id: int | None
+    category_id: int | None
     note: str | None
+    # The discount currently linked to this payment (0 when none), so the income
+    # editor can pre-fill it. Populated by the endpoints; defaults to 0 elsewhere.
+    discount: int = 0
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    updated_by: int | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def edited(self) -> bool:
+        """True once an entry has been corrected after it was first recorded —
+        lets the journal flag it without a separate audit-log lookup. `updated_by`
+        is null on creation and only stamped on a mutation (don't compare
+        timestamps: SQLite's CURRENT_TIMESTAMP is whole-second resolution)."""
+        return self.updated_by is not None
 
 
 class TakePaymentRequest(BaseModel):
@@ -153,6 +178,10 @@ class TakePaymentRequest(BaseModel):
     amount: int = Field(gt=0)
     date: datetime.date | None = None  # defaults to today (smart default, story 21)
     note: str | None = None
+    # Optional discount applied to the case alongside the payment (stories 59-60).
+    # Recorded as a CaseAdjustment, not income — it lowers what is owed in the
+    # same atomic request, so it survives the offline quick-add queue too.
+    discount: int | None = Field(default=None, gt=0)
 
 
 class TakePaymentResponse(BaseModel):
@@ -359,6 +388,14 @@ class MovementUpdate(BaseModel):
     date: datetime.date | None = None
     note: str | None = None
     category_id: int | None = None
+    partner_id: int | None = None
+    case_id: int | None = None
+    from_account_id: int | None = None
+    to_account_id: int | None = None
+    # The discount on this payment, as an absolute amount (income only). Present
+    # with 0 clears it; absent leaves it untouched. Reconciled against the single
+    # discount linked to this movement, so editing rewrites rather than stacks.
+    discount: int | None = None
 
 
 class AdjustmentRequest(BaseModel):
@@ -382,6 +419,7 @@ class AuditLogOut(BaseModel):
     action: str
     entity_type: str
     entity_id: int | None
+    detail: dict | None = None
     at: datetime.datetime
 
 
@@ -438,6 +476,24 @@ class PartnerContribution(BaseModel):
     collected: int
     paid: int
     entitled: int
+
+
+class AccountActivityRow(BaseModel):
+    movement_id: int
+    date: datetime.date
+    type: MovementType  # income (money in) or expense (money out)
+    amount: int  # income adds to the account, expense takes from it; a refund is a negative income
+    note: str | None
+    case_id: int | None
+
+
+class AccountActivity(BaseModel):
+    account_id: int
+    name: str
+    kind: AccountKind
+    income: int   # total money that came into this account as income
+    expense: int  # total money that left this account as expense
+    rows: list[AccountActivityRow]  # most recent first (capped by `limit`)
 
 
 # --- reminders (Milestone 7) -------------------------------------------------

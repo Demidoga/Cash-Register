@@ -39,7 +39,7 @@ npm run dev                          # http://localhost:5173
 ```
 
 Open the web app, sign in (any email — the first user becomes the owner and runs
-setup), and you https://cblkjkdicfnvwigfxlkx.supabase.co/rest/v1/'re live.
+setup), and you're live.
 
 ## Test & typecheck
 

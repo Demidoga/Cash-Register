@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "@phosphor-icons/react";
 import { api, downloadFile } from "../api";
 import { useLoad } from "../hooks";
 import { firstOfMonth, lastOfMonth, rupees, today } from "../format";
@@ -130,8 +131,8 @@ export default function Periods() {
       ) : <div className="list-empty">No settlements yet. Close a period to produce one.</div>}
 
       {pay && (
-        <Card style={{ position: "fixed", bottom: 20, right: 20, width: 360, boxShadow: "var(--shadow)" }}>
-          <div className="section-head"><h3>Record settlement payment</h3><button className="ghost sm" onClick={() => setPay(null)}>✕</button></div>
+        <Card className="float-panel">
+          <div className="section-head"><h3>Record settlement payment</h3><button className="ghost sm" aria-label="Close" onClick={() => setPay(null)}><X size={14} /></button></div>
           <p className="muted" style={{ marginTop: 0 }}>{parName(pay.ob.from_partner_id)} pays {parName(pay.ob.to_partner_id)} {rupees(pay.ob.amount)}</p>
           <form onSubmit={recordPayment}>
             <Field label="From account"><select value={payForm.from} onChange={(e) => setPayForm({ ...payForm, from: e.target.value })} required><option value="">…</option>{accounts.data?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>

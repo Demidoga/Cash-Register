@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "@phosphor-icons/react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { useLoad } from "../hooks";
@@ -63,6 +64,11 @@ export default function Config() {
 
       <Card style={{ marginBottom: 16 }}>
         <h2>Accounts</h2>
+        <p className="muted" style={{ marginTop: -4 }}>
+          Give a personal account an owner to link it to a partner. When you log
+          income or an expense for that partner, their account is filled in
+          automatically (you can still change it).
+        </p>
         {accounts.loading ? <Spinner /> : (
           <table>
             <thead><tr><th>Name</th><th>Kind</th><th className="num">Opening</th><th></th></tr></thead>
@@ -104,7 +110,7 @@ export default function Config() {
           <h2>Procedure catalog</h2>
           {procedures.loading ? <Spinner /> : (
             <table><tbody>{procedures.data?.map((p) => (
-              <tr key={p.id}><td>{p.name}</td><td className="num">{rupees(p.default_price)}</td><td className="num"><button className="danger sm" onClick={async () => { try { await api.deleteProcedure(p.id); procedures.reload(); } catch (e) { fail(e); } }}>✕</button></td></tr>
+              <tr key={p.id}><td>{p.name}</td><td className="num">{rupees(p.default_price)}</td><td className="num"><button className="danger sm" aria-label={`Delete ${p.name}`} onClick={async () => { try { await api.deleteProcedure(p.id); procedures.reload(); } catch (e) { fail(e); } }}><X size={14} /></button></td></tr>
             ))}</tbody></table>
           )}
           <form className="row" style={{ marginTop: 10, alignItems: "flex-end" }} onSubmit={async (e) => { e.preventDefault(); try { await api.createProcedure({ name: proc.name, default_price: Number(proc.price || 0) }); setProc({ name: "", price: "" }); procedures.reload(); } catch (e2) { fail(e2); } }}>
@@ -118,7 +124,7 @@ export default function Config() {
           <h2>Employees</h2>
           {employees.loading ? <Spinner /> : (
             <table><tbody>{employees.data?.map((emp2) => (
-              <tr key={emp2.id}><td>{emp2.name} <span className="muted">{emp2.role}</span></td><td className="num">{rupees(emp2.salary)}</td><td className="num"><button className="danger sm" onClick={async () => { try { await api.deleteEmployee(emp2.id); employees.reload(); } catch (e) { fail(e); } }}>✕</button></td></tr>
+              <tr key={emp2.id}><td>{emp2.name} <span className="muted">{emp2.role}</span></td><td className="num">{rupees(emp2.salary)}</td><td className="num"><button className="danger sm" aria-label={`Delete ${emp2.name}`} onClick={async () => { try { await api.deleteEmployee(emp2.id); employees.reload(); } catch (e) { fail(e); } }}><X size={14} /></button></td></tr>
             ))}</tbody></table>
           )}
           <form className="row" style={{ marginTop: 10, alignItems: "flex-end" }} onSubmit={async (e) => { e.preventDefault(); try { await api.createEmployee({ name: emp.name, role: emp.role || null, salary: Number(emp.salary || 0) }); setEmp({ name: "", role: "", salary: "" }); employees.reload(); } catch (e2) { fail(e2); } }}>
@@ -155,7 +161,7 @@ export default function Config() {
 }
 
 // Owner-only allowlist management (ADR-0008). Add someone by email; they sign
-// in to Supabase with that email to get access — no email is sent, no token.
+// in to Supabase with that email to get access. No email is sent, no token.
 function MembersCard() {
   const toast = useToast();
   const members = useLoad(() => api.members());
@@ -189,7 +195,7 @@ function MembersCard() {
     <Card style={{ marginBottom: 16 }}>
       <h2>Members</h2>
       <p className="muted" style={{ marginTop: -4 }}>
-        Grant access by email. The person signs in with that email — no invite email is sent.
+        Grant access by email. The person signs in with that email. No invite email is sent.
       </p>
       {members.loading ? <Spinner /> : (
         <table>
@@ -220,7 +226,15 @@ function ListChips({ items, onDelete }: { items: { id: number; label: string }[]
     <div className="pill-row">
       {items.map((it) => (
         <span key={it.id} className="badge gray inline" style={{ gap: 6 }}>
-          {it.label}<button className="ghost sm" style={{ padding: "0 4px" }} onClick={() => onDelete(it.id)}>✕</button>
+          {it.label}
+          <button
+            type="button"
+            aria-label={`Remove ${it.label}`}
+            onClick={() => onDelete(it.id)}
+            style={{ background: "transparent", border: "none", color: "var(--muted)", padding: 0, cursor: "pointer", display: "inline-flex" }}
+          >
+            <X size={12} weight="bold" />
+          </button>
         </span>
       ))}
     </div>
