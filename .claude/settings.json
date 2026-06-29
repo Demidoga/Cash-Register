@@ -52,7 +52,10 @@
       "Bash(DATABASE_URL=x JWT_SECRET=x CLOUDFLARE_TUNNEL_TOKEN=x docker compose config --quiet)",
       "Bash(DATABASE_URL=x JWT_SECRET=x docker compose config --services)",
       "Bash(DATABASE_URL=x JWT_SECRET=x docker compose --profile tunnel config --services)",
-      "Bash(DATABASE_URL=x JWT_SECRET=x docker compose config)"
+      "Bash(DATABASE_URL=x JWT_SECRET=x docker compose config)",
+      "Bash(command -v tailscale)",
+      "Bash(tailscale version *)",
+      "Bash(command -v rsync)"
     ]
   }
 }
