@@ -39,7 +39,16 @@
       "Bash(export DATABASE_URL='postgresql://test:test@localhost:55432/test')",
       "Bash(docker exec *)",
       "Bash(JWT_SECRET=x DATABASE_URL=postgresql://u:p@h:5432/d docker compose config --quiet)",
-      "Bash(export DATABASE_URL='postgresql://postgres.cblkjkdicfnvwigfxlkx:%2Fr8rxe%242S_b_w2%40@aws-1-ap-south-1.pooler.supabase.com:5432/postgres')"
+      "Bash(export DATABASE_URL='postgresql://postgres.cblkjkdicfnvwigfxlkx:%2Fr8rxe%242S_b_w2%40@aws-1-ap-south-1.pooler.supabase.com:5432/postgres')",
+      "Bash(sudo lsof -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(lsof -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(JWT_SECRET=x docker compose ps)",
+      "Bash(kill 46985 73832)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8000/health)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost/api/health)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}  %{content_type}\\\\n\" http://localhost/)",
+      "Bash(rm -f __TRACKED_VAR__/atest.db)",
+      "Bash(DATABASE_URL=sqlite+pysqlite:///__TRACKED_VAR__/atest.db uv run alembic upgrade head)"
     ]
   }
 }
